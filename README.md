@@ -6,7 +6,7 @@ Table Users = new Table("Users")
     .has("Username").asString(50)
     .has("Password").asString(20)
     .has("Age").asInt()
-    .has("Balance").asDecimal(10, 3);
+    .has("Balance").asDecimal(10, 3);On Thursday 2nd April 2026 (two-hour c
 String UsersSQLString = Users.toSQL();
 
 // TestCase 1
@@ -19,3 +19,4 @@ System.out.println(UsersSQLString);
 //     Balance DECIMAL(10, 3)
 // )
 ```
+

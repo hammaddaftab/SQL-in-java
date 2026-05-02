@@ -2,13 +2,18 @@ import java.security.Timestamp;
 import java.sql.Date;
 import java.sql.Time;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class Table {
     String nextLine = "\n"; // for readability
+    String indent = "    "; // for readability
     String tableName;
     String activeColumnForChaining;
-    List<Column> columnsList = new ArrayList<>();
+    Map<String, Column> columnsList = new LinkedHashMap<>();
+    Map<String, ColumnReference> foreignKeys = new LinkedHashMap<>(); 
+    ColumnReference primaryKey = null;
 
     public Table(String tableName) {
         this.tableName = tableName;
@@ -20,7 +25,7 @@ public class Table {
     }
 
     public Table asString(int size) {
-        columnsList.add(new Column(
+        columnsList.put(activeColumnForChaining, new Column(
             activeColumnForChaining,
             ParameterizedColumnType.VARCHAR,
             new SizeParameter(size)
@@ -29,7 +34,7 @@ public class Table {
     }
 
     public Table asDecimal(int precision, int scale) {
-        columnsList.add(new Column(
+        columnsList.put(activeColumnForChaining, new Column(
             activeColumnForChaining,
             ParameterizedColumnType.DECIMAL,
             new PrecisionScaleParameter(precision, scale)
@@ -38,19 +43,127 @@ public class Table {
     }
 
     public Table asInt() {
-        columnsList.add(new Column(
+        columnsList.put(activeColumnForChaining, new Column(
             activeColumnForChaining, 
             NonParameterizedColumnType.INTEGER
         ));
         return this;
     }
 
-    public String toSQL() {
-        String columnString = "";
-        for (Column C: columnsList) {
-            columnString = columnString.concat("    " + C.toSQL() + nextLine); // Username VARCHAR(20)
+    Table refers(ColumnReference target) {
+        foreignKeys.put(target.column.name, target);
+        if (target.column.columnType instanceof NonParameterizedColumnType) {
+            NonParameterizedColumnType columnType = (NonParameterizedColumnType) target.column.columnType;
+            this.columnsList.put(
+                target.column.name,
+                new Column(
+                    target.column.name, 
+                    columnType
+                )
+            );
+        } else {
+            ParameterizedColumnType columnType = (ParameterizedColumnType) target.column.columnType;
+            this.columnsList.put(
+                target.column.name,
+                new Column(
+                    target.column.name, 
+                    columnType,
+                    target.column.parameters
+
+                )
+            );
         }
-        return tableName + "(" + nextLine + columnString + ")";
+        return this;
+    }
+
+    public ColumnReference c(String columnName) {
+        Column column = columnsList.get(columnName);
+        if (column == null) throw new RuntimeException(
+            "Column " + columnName + " not found in " + tableName + ""
+        );
+        return new ColumnReference(this, column);
+    }
+
+    public String toSQL() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("CREATE TABLE ").append(tableName).append(" (").append(nextLine);
+
+        // columns — all but track if FK lines follow for trailing comma
+        List<Column> cols = new ArrayList<>(columnsList.values());
+        boolean hasFKs = !foreignKeys.isEmpty();
+
+        for (int i = 0; i < cols.size(); i++) {
+            boolean isLastColumn = (i == cols.size() - 1);
+            sb.append(indent)
+            .append(cols.get(i).toSQL())
+            .append(isLastColumn && !hasFKs ? "" : ",")
+            .append(nextLine);
+        }
+
+        // foreign key constraints
+        List<Map.Entry<String, ColumnReference>> fkList = new ArrayList<>(foreignKeys.entrySet());
+        for (int i = 0; i < fkList.size(); i++) {
+            boolean isLastFK = (i == fkList.size() - 1);
+            String localCol  = fkList.get(i).getKey();
+            ColumnReference target = fkList.get(i).getValue();
+
+            sb.append(indent)
+            .append("FOREIGN KEY (").append(localCol).append(")")
+            .append(" REFERENCES ").append(target.table.tableName)
+            .append("(").append(target.column.name).append(")")
+            .append(isLastFK ? "" : ",")
+            .append(nextLine);
+        }
+
+        sb.append(");");
+        return sb.toString();
+    }
+}
+
+
+class ColumnReference {
+    Table table;
+    Column column;
+
+    ColumnReference(Table table, Column column) {
+        this.table = table;
+        this.column = column;
+    }
+
+    Table is(Constraint constraint) {
+        this.column.constraints.add(constraint);
+
+        if (constraint == Constraint.PRIMARYKEY) {
+            if (this.table.primaryKey != null) {
+                throw new RuntimeException(
+                    "Table " + this.table.tableName + 
+                    " already has a primary key on column " + 
+                    this.table.primaryKey.column.name
+                );
+            }
+            this.table.primaryKey = this;
+        }
+
+        return this.table;
+    }
+
+    Table is(Constraints constraints) {
+        this.column.constraints.addAll(constraints);
+
+        for (Constraint constraint : constraints) {
+            if (constraint == Constraint.PRIMARYKEY) {
+                if (this.table.primaryKey != null) {
+                    throw new RuntimeException(
+                        "Table " + this.table.tableName + 
+                        " already has a primary key on column " + 
+                        this.table.primaryKey.column.name
+                    );
+                }
+                this.table.primaryKey = this;
+            }
+        }
+
+        return this.table;
     }
 }
 
@@ -59,6 +172,7 @@ class Column {
     String name;
     ColumnType columnType;
     ColumnTypeParameters parameters;
+    Constraints constraints = new Constraints();
 
     Column(String name, NonParameterizedColumnType columnType) {
         this.name = name;
@@ -72,12 +186,52 @@ class Column {
     }
 
     public String toSQL() {
-        if (this.columnType instanceof ParameterizedColumnType) 
-            return this.name + " " + this.columnType.getSQLType() + parameters.toSQL();
-        return this.name + " " + this.columnType.getSQLType();
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.name).append(" ");
+
+        if (this.columnType instanceof ParameterizedColumnType) {
+            sb.append(this.columnType.getSQLType()).append(parameters.toSQL());
+        } else {
+            sb.append(this.columnType.getSQLType());
+        }
+
+        for (Constraint constraint : this.constraints) {
+            sb.append(" ").append(constraint.toSQL());
+        }
+
+        return sb.toString();
     }
 }
 
+
+enum Constraint {
+    NOTNULL("NOT NULL"),
+    UNIQUE("UNIQUE"),
+    PRIMARYKEY("PRIMARY KEY");
+
+    String SQLString; 
+
+    Constraint(String SQLString) {
+        this.SQLString = SQLString;
+    }
+
+    Constraints and(Constraint constraint) {
+        Constraints constraints = new Constraints();
+        constraints.add(this);
+        constraints.add(constraint);
+        return constraints;
+    }
+
+    String toSQL() {
+        return this.SQLString;
+    }
+}
+class Constraints extends ArrayList<Constraint> {
+    Constraints and(Constraint constraint) {
+        this.add(constraint);
+        return this;
+    }
+};
 
 
 interface ColumnType {

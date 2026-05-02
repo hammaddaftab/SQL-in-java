@@ -68,9 +68,12 @@ public class ColumnReference {
     public Predicate gte(Object value) { return new ComparisonPredicate(this, ">=", value); }
     public Predicate lte(Object value) { return new ComparisonPredicate(this, "<=", value); }
 
-    // column-to-column comparisons (for joins / cross-row predicates)
-    public Predicate eq(ColumnReference o)  { return new ComparisonPredicate(this, "=",  o); }
-    public Predicate ne(ColumnReference o)  { return new ComparisonPredicate(this, "<>", o); }
+    // column-to-column comparisons (for joins / cross-row predicates).
+    // Null-guarded too: .eq(null) resolves to this overload (ColumnReference is
+    // more specific than Object), so we rewrite to IS NULL / IS NOT NULL here
+    // as well — otherwise toSQL() would NPE on the null right-hand side.
+    public Predicate eq(ColumnReference o)  { return o == null ? isNull()    : new ComparisonPredicate(this, "=",  o); }
+    public Predicate ne(ColumnReference o)  { return o == null ? isNotNull() : new ComparisonPredicate(this, "<>", o); }
     public Predicate gt(ColumnReference o)  { return new ComparisonPredicate(this, ">",  o); }
     public Predicate lt(ColumnReference o)  { return new ComparisonPredicate(this, "<",  o); }
     public Predicate gte(ColumnReference o) { return new ComparisonPredicate(this, ">=", o); }

@@ -4,12 +4,8 @@ import java.lang.reflect.Field;
 // collection
 import java.util.*;
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD)
-@interface PrimaryKey {}
-
 public class ORM {
-    Map<String, Table> tables = new HashMap<>();
+    Map<Class<?>, Table> tables = new HashMap<>();
     Map<Class<?>, Field> primaryKeys = new HashMap<>();
 
     public void register(Class<?> clazz, Table table) {
@@ -21,7 +17,7 @@ public class ORM {
         // finds the primary key field
         Field primaryKeyField = null;
         for (Field field : clazz.getDeclaredFields()) {
-            if (field.getName() == table.primaryKey.column.name) {
+            if (field.getName().equals(table.primaryKey.column.name)) {
                 primaryKeyField = field;
                 break;
             }
@@ -32,7 +28,7 @@ public class ORM {
         );
 
         // every attribute in Table has a matching attribute in the Class provided 
-        Map<String, Field> nameToField = new HashMap<>(null);
+        Map<String, Field> nameToField = new HashMap<>();
         for (Field f: clazz.getDeclaredFields()) {
             nameToField.put(f.getName(), f);
         }
@@ -42,7 +38,7 @@ public class ORM {
             );
         }
 
-        tables.put(clazz.getName(), table);
+        tables.put(clazz, table);
         primaryKeys.put(clazz, primaryKeyField);
     }
 
@@ -54,7 +50,7 @@ public class ORM {
         Class<?> clazz = instance.getClass();
 
         // make sure this class was registered
-        if (!tables.containsKey(clazz.getName())) throw new RuntimeException(
+        if (!tables.containsKey(clazz)) throw new RuntimeException(
             clazz.getName() + " is not registered with the ORM"
         );
 

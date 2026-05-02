@@ -1,6 +1,8 @@
 package src.sql_in_java;
-import java.lang.annotation.*;
 import java.lang.reflect.Field;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 
 // collection
 import java.util.*;
@@ -8,6 +10,10 @@ import java.util.*;
 public class ORM {
     Map<Class<?>, Table> tables = new HashMap<>();
     Map<Class<?>, Field> primaryKeys = new HashMap<>();
+
+    // JDBC connection. Lazily set via connect(...). Reused by populate() / fetch().
+    // Kept package-private so SelectBuilder can read it without a public getter chain.
+    Connection connection;
 
     public void register(Class<?> clazz, Table table) {
 
@@ -41,6 +47,52 @@ public class ORM {
 
         tables.put(clazz, table);
         primaryKeys.put(clazz, primaryKeyField);
+    }
+
+
+    // =====================================================================
+    // JDBC connection management
+    //
+    // The MySQL driver (mysql-connector-j) must be on the classpath. Modern
+    // JDBC (4.0+) auto-registers drivers via SPI, so no Class.forName call
+    // is required.
+    //
+    //   ORM orm = new ORM();
+    //   orm.register(User.class, Users);
+    //   orm.connect("jdbc:mysql://localhost:3306/mydb", "root", "secret");
+    //   ...
+    //   orm.close();
+    // =====================================================================
+
+    public ORM connect(String url, String user, String password) {
+        try {
+            this.connection = DriverManager.getConnection(url, user, password);
+        } catch (SQLException e) {
+            throw new RuntimeException(
+                "Failed to connect to database at " + url + ": " + e.getMessage(), e
+            );
+        }
+        return this;
+    }
+
+    // For users who already manage a Connection (e.g. via a DataSource / pool).
+    public ORM connect(Connection conn) {
+        this.connection = conn;
+        return this;
+    }
+
+    public Connection getConnection() {
+        if (connection == null) throw new RuntimeException(
+            "ORM is not connected. Call orm.connect(url, user, password) first."
+        );
+        return connection;
+    }
+
+    public void close() {
+        if (connection != null) {
+            try { connection.close(); } catch (SQLException ignored) {}
+            connection = null;
+        }
     }
 
 
@@ -114,11 +166,14 @@ public class ORM {
     // Entry points for the SELECT DSL.
     //   orm.select(instance)  -> match-by-example, OR additional instances via .or(other)
     //   orm.from(User.class)  -> blank slate, build conditions via .where(predicate)
-    public SelectBuilder select(Object instance) {
-        return new SelectBuilder(this, instance);
+    //
+    // Both are generic so .populate() / .fetch() can return the registered type
+    // without forcing the caller to cast.
+    public <T> SelectBuilder<T> select(T instance) {
+        return new SelectBuilder<>(this, instance);
     }
 
-    public SelectBuilder from(Class<?> clazz) {
-        return new SelectBuilder(this, clazz);
+    public <T> SelectBuilder<T> from(Class<T> clazz) {
+        return new SelectBuilder<>(this, clazz);
     }
 }

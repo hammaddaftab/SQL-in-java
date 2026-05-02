@@ -65,15 +65,6 @@ public class ORM {
     }
 
 
-    // takes in an object, generates a corresponding string
-    private String formatValue(Object value) {
-        if (value == null)             return "NULL";
-        if (value instanceof String)   return "'" + value + "'";
-        if (value instanceof Boolean)  return (Boolean) value ? "TRUE" : "FALSE";
-        return value.toString();       // Integer, Double etc
-    }
-
-
     // instance is the tracked instance
     // snapshot is a copy of the tracked instance, made when the tracking started
     public void updateSnapshot(Object instance) throws IllegalAccessException {
@@ -87,31 +78,46 @@ public class ORM {
         }
     }
 
-    // looks at the non-null fields, and then generate AND clause correspondingly
+    // Build a "match by example" AND-clause from non-null fields on the instance.
+    // Only iterates fields that correspond to registered columns; stray POJO fields
+    // are ignored, so adding helper fields to the class won't leak into SQL.
     String buildConditions(Object instance) throws IllegalAccessException {
+        Class<?> clazz = instance.getClass();
+        Table table = tables.get(clazz);
+        if (table == null) throw new RuntimeException(
+            clazz.getName() + " is not registered with the ORM"
+        );
+
         StringBuilder sb = new StringBuilder();
+        boolean first = true;
 
-        List<Field> setFields = new ArrayList<>();
-        for (Field field : instance.getClass().getDeclaredFields()) {
-            field.setAccessible(true);
-            if (field.get(instance) != null) {
-                setFields.add(field);
+        for (Column column : table.columnsList.values()) {
+            Field field;
+            try {
+                field = clazz.getDeclaredField(column.name);
+            } catch (NoSuchFieldException e) {
+                continue; // shouldn't happen — register() validates this
             }
-        }
+            field.setAccessible(true);
+            Object value = field.get(instance);
+            if (value == null) continue;
 
-        Iterator<Field> it = setFields.iterator();
-        while (it.hasNext()) {
-            Field field = it.next();
-            sb.append(field.getName())
-            .append(" = ")
-            .append(formatValue(field.get(instance)));
-            if (it.hasNext()) sb.append(" AND ");
+            if (!first) sb.append(" AND ");
+            sb.append(column.name).append(" = ").append(SQLFormat.literal(value));
+            first = false;
         }
 
         return sb.toString();
     }
 
+    // Entry points for the SELECT DSL.
+    //   orm.select(instance)  -> match-by-example, OR additional instances via .or(other)
+    //   orm.from(User.class)  -> blank slate, build conditions via .where(predicate)
     public SelectBuilder select(Object instance) {
         return new SelectBuilder(this, instance);
+    }
+
+    public SelectBuilder from(Class<?> clazz) {
+        return new SelectBuilder(this, clazz);
     }
 }

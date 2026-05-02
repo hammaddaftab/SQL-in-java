@@ -1,6 +1,9 @@
+package src.sql_in_java;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import src.sql_in_java.Clauses.*;
 
 /**
  * Fluent builder for SELECT statements.

@@ -1,4 +1,5 @@
-import java.sql.Timestamp;
+package tests;
+import src.sql_in_java.*;
 
 /**
  * Tests for the SELECT DSL.

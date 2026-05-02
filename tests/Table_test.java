@@ -1,4 +1,5 @@
-
+package tests;
+import src.sql_in_java.*;
 
 public class Table_test {
     public static void main() {

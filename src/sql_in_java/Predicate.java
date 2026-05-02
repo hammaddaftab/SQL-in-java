@@ -1,3 +1,5 @@
+package src.sql_in_java;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -212,26 +214,6 @@ class NullPredicate implements Predicate {
         return column.column.name + (negated ? " IS NOT NULL" : " IS NULL");
     }
 }
-
-
-// -------- ORDER BY clause --------
-
-class OrderByClause {
-    ColumnReference column;
-    boolean ascending;
-
-    OrderByClause(ColumnReference column, boolean ascending) {
-        this.column = column;
-        this.ascending = ascending;
-    }
-
-    String toSQL() {
-        return column.column.name + (ascending ? " ASC" : " DESC");
-    }
-}
-
-
-// -------- Shared SQL value formatting --------
 
 class SQLFormat {
     static String literal(Object value) {

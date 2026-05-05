@@ -44,19 +44,24 @@ public class Mutation_test {
     }
 
     public static void main(String[] args) throws Exception {
-        ORM orm = new ORM();
-
-        Table Users = Table.create("Users")
-            .has("Id").asInt().is(Constraint.PRIMARYKEY)
+        // Define schema
+        Table Users = new Table("Users")
+            .has("Id").asInt()
             .has("Name").asString(100)
             .has("Age").asInt()
             .has("Status").asString(50);
-        orm.register(User.class, Users);
+        Users.c("Id").is(Constraint.PRIMARYKEY);
 
-        Table Accounts = Table.create("Accounts")
-            .has("Id").asInt().is(Constraint.PRIMARYKEY)
+        Table Accounts = new Table("Accounts")
+            .has("Id").asInt()
             .has("Email").asString(150)
             .has("Type").asString(20);
+        Accounts.c("Id").is(Constraint.PRIMARYKEY);
+
+
+        // Register with ORM
+        ORM orm = new ORM();
+        orm.register(User.class, Users);
         orm.register(Account.class, Accounts);
 
         System.out.println("=== BULK UPDATE TESTS ===\n");

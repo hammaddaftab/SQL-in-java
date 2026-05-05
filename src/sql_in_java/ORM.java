@@ -211,8 +211,55 @@ public class ORM {
         Map<String, Object> snapshot = snapshots.get(instance);
 
         if (snapshot != null) {
-            // UPDATE case: compute diff and send only changed columns
-            updateInstance(instance, snapshot, table);
+            // UPDATE case: build a predicate matching the PK, then set changed columns
+            if (table.primaryKey == null) {
+                throw new RuntimeException(
+                    "Table " + table.tableName + " has no primary key; cannot update by ID"
+                );
+            }
+
+            Field pkField;
+            try {
+                pkField = clazz.getDeclaredField(table.primaryKey.column.name);
+            } catch (NoSuchFieldException e) {
+                throw new RuntimeException(
+                    "Primary key field " + table.primaryKey.column.name + " not found", e
+                );
+            }
+            pkField.setAccessible(true);
+            Object pkValue = pkField.get(instance);
+
+            if (pkValue == null) {
+                throw new RuntimeException("Cannot update: primary key is null");
+            }
+
+            // Delegate to UpdateBuilder, only setting changed columns
+            UpdateBuilder<T> ub = update(clazz);
+            boolean hasChanges = false;
+
+            for (Column col : table.columnsList.values()) {
+                Field field;
+                try {
+                    field = clazz.getDeclaredField(col.name);
+                } catch (NoSuchFieldException e) {
+                    continue;
+                }
+                field.setAccessible(true);
+                Object currentValue = field.get(instance);
+                Object snapshotValue = snapshot.get(col.name);
+
+                // Skip if unchanged
+                if (currentValue == null && snapshotValue == null) continue;
+                if (currentValue != null && currentValue.equals(snapshotValue)) continue;
+
+                ub.set(col.name, currentValue);
+                hasChanges = true;
+            }
+
+            if (hasChanges) {
+                ub.where(table.primaryKey.eq(pkValue)).execute();
+            }
+
             // Refresh snapshot
             updateSnapshot(instance);
         } else {
@@ -278,16 +325,8 @@ public class ORM {
             );
         }
 
-        String sql = "DELETE FROM " + table.tableName +
-                     " WHERE " + table.primaryKey.column.name + " = " + SQLFormat.literal(pkValue) + ";";
-
-        if (connection == null) {
-            throw new RuntimeException("ORM is not connected to a database");
-        }
-
-        try (java.sql.Statement stmt = connection.createStatement()) {
-            stmt.executeUpdate(sql.substring(0, sql.length() - 1)); // Remove semicolon
-        }
+        // Delegate to DeleteBuilder: DELETE FROM ... WHERE pk = value
+        deleteWhere(clazz).where(table.primaryKey.eq(pkValue)).execute();
 
         // Remove from snapshots
         snapshots.remove(instance);
@@ -362,73 +401,7 @@ public class ORM {
         }
     }
 
-    /**
-     * Generate and execute an UPDATE statement for a modified instance,
-     * sending only the columns that have changed.
-     */
-    private <T> void updateInstance(T instance, Map<String, Object> snapshot, Table table) throws Exception {
-        Class<?> clazz = instance.getClass();
-        StringBuilder setClause = new StringBuilder();
 
-        boolean first = true;
-        for (Column col : table.columnsList.values()) {
-            Field field;
-            try {
-                field = clazz.getDeclaredField(col.name);
-            } catch (NoSuchFieldException e) {
-                continue;
-            }
-            field.setAccessible(true);
-            Object currentValue = field.get(instance);
-            Object snapshotValue = snapshot.get(col.name);
-
-            // Skip if unchanged
-            if (currentValue == null && snapshotValue == null) continue;
-            if (currentValue != null && currentValue.equals(snapshotValue)) continue;
-
-            if (!first) setClause.append(", ");
-            setClause.append(col.name).append(" = ").append(SQLFormat.literal(currentValue));
-            first = false;
-        }
-
-        if (setClause.length() == 0) {
-            // Nothing changed, nothing to update
-            return;
-        }
-
-        if (table.primaryKey == null) {
-            throw new RuntimeException(
-                "Table " + table.tableName + " has no primary key; cannot update by ID"
-            );
-        }
-
-        Field pkField;
-        try {
-            pkField = clazz.getDeclaredField(table.primaryKey.column.name);
-        } catch (NoSuchFieldException e) {
-            throw new RuntimeException(
-                "Primary key field " + table.primaryKey.column.name + " not found", e
-            );
-        }
-        pkField.setAccessible(true);
-        Object pkValue = pkField.get(instance);
-
-        if (pkValue == null) {
-            throw new RuntimeException("Cannot update: primary key is null");
-        }
-
-        String sql = "UPDATE " + table.tableName +
-                     " SET " + setClause +
-                     " WHERE " + table.primaryKey.column.name + " = " + SQLFormat.literal(pkValue) + ";";
-
-        if (connection == null) {
-            throw new RuntimeException("ORM is not connected to a database");
-        }
-
-        try (java.sql.Statement stmt = connection.createStatement()) {
-            stmt.executeUpdate(sql.substring(0, sql.length() - 1)); // Remove semicolon
-        }
-    }
 
     /**
      * Return the Table for a registered class (package-private for UpdateBuilder/DeleteBuilder).

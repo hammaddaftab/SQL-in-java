@@ -176,4 +176,264 @@ public class ORM {
     public <T> SelectBuilder<T> from(Class<T> clazz) {
         return new SelectBuilder<>(this, clazz);
     }
+
+    // =====================================================================
+    // Mutations: permanent (INSERT or UPDATE), delete, bulk operations
+    // =====================================================================
+
+    /**
+     * Persist an instance to the database (INSERT or UPDATE).
+     * 
+     * Semantics:
+     *   - If a snapshot exists for this instance → UPDATE (only changed columns)
+     *   - If no snapshot + PK is null → INSERT with auto-generated PK
+     *   - If no snapshot + PK is non-null → INSERT with explicit PK
+     * 
+     * After INSERT, the instance is tracked (snapshot created).
+     * After UPDATE, the snapshot is refreshed.
+     * 
+     * Example:
+     *   User u = new User(); u.Name = "Alice"; u.Age = 25;
+     *   orm.permanent(u);  // INSERT
+     *   
+     *   u.Age = 26;
+     *   orm.permanent(u);  // UPDATE (only age changed)
+     */
+    public <T> T permanent(T instance) throws Exception {
+        Class<?> clazz = instance.getClass();
+        Table table = tables.get(clazz);
+        if (table == null) {
+            throw new RuntimeException(
+                clazz.getName() + " is not registered with the ORM"
+            );
+        }
+
+        Map<String, Object> snapshot = snapshots.get(instance);
+
+        if (snapshot != null) {
+            // UPDATE case: compute diff and send only changed columns
+            updateInstance(instance, snapshot, table);
+            // Refresh snapshot
+            updateSnapshot(instance);
+        } else {
+            // INSERT case
+            insertInstance(instance, table);
+            // Create snapshot for future tracking
+            Map<String, Object> newSnapshot = new HashMap<>();
+            for (Field field : clazz.getDeclaredFields()) {
+                field.setAccessible(true);
+                newSnapshot.put(field.getName(), field.get(instance));
+            }
+            snapshots.put(instance, newSnapshot);
+        }
+
+        return instance;
+    }
+
+    /**
+     * Delete an instance from the database (requires a snapshot / tracked instance).
+     * 
+     * Example:
+     *   User u = orm.select(...).fetch().get(0);
+     *   orm.delete(u);  // DELETE WHERE id = u.id
+     */
+    public <T> void delete(T instance) throws Exception {
+        Class<?> clazz = instance.getClass();
+        Table table = tables.get(clazz);
+        if (table == null) {
+            throw new RuntimeException(
+                clazz.getName() + " is not registered with the ORM"
+            );
+        }
+
+        Map<String, Object> snapshot = snapshots.get(instance);
+        if (snapshot == null) {
+            throw new RuntimeException(
+                "Cannot delete an untracked instance. " +
+                "Instance must have been fetched via orm.select/fetch or explicitly tracked."
+            );
+        }
+
+        if (table.primaryKey == null) {
+            throw new RuntimeException(
+                "Table " + table.tableName + " has no primary key; cannot delete by ID"
+            );
+        }
+
+        // Get the PK value from the snapshot (the original, unmodified value)
+        Field pkField;
+        try {
+            pkField = clazz.getDeclaredField(table.primaryKey.column.name);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(
+                "Primary key field " + table.primaryKey.column.name + " not found on " + clazz.getName(), e
+            );
+        }
+        pkField.setAccessible(true);
+        Object pkValue = pkField.get(instance);
+
+        if (pkValue == null) {
+            throw new RuntimeException(
+                "Cannot delete: primary key is null"
+            );
+        }
+
+        String sql = "DELETE FROM " + table.tableName +
+                     " WHERE " + table.primaryKey.column.name + " = " + SQLFormat.literal(pkValue) + ";";
+
+        if (connection == null) {
+            throw new RuntimeException("ORM is not connected to a database");
+        }
+
+        try (java.sql.Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate(sql.substring(0, sql.length() - 1)); // Remove semicolon
+        }
+
+        // Remove from snapshots
+        snapshots.remove(instance);
+    }
+
+    /**
+     * Entry point for bulk UPDATE statements.
+     * 
+     * Example:
+     *   orm.update(User.class)
+     *      .set("Status", "inactive")
+     *      .where(Users.c("Age").below(18))
+     *      .execute();
+     */
+    public <T> UpdateBuilder<T> update(Class<T> clazz) {
+        return new UpdateBuilder<T>(this, clazz);
+    }
+
+    /**
+     * Entry point for bulk DELETE statements.
+     * 
+     * Example:
+     *   orm.delete(User.class)
+     *      .where(Users.c("Status").eq("archived"))
+     *      .execute();
+     */
+    public <T> DeleteBuilder<T> deleteWhere(Class<T> clazz) {
+        return new DeleteBuilder<T>(this, clazz);
+    }
+
+    // =====================================================================
+    // Private helpers: instance INSERT and UPDATE
+    // =====================================================================
+
+    /**
+     * Generate and execute an INSERT statement for a new instance.
+     */
+    private <T> void insertInstance(T instance, Table table) throws Exception {
+        Class<?> clazz = instance.getClass();
+        StringBuilder columns = new StringBuilder();
+        StringBuilder values = new StringBuilder();
+
+        boolean first = true;
+        for (Column col : table.columnsList.values()) {
+            Field field;
+            try {
+                field = clazz.getDeclaredField(col.name);
+            } catch (NoSuchFieldException e) {
+                continue;
+            }
+            field.setAccessible(true);
+            Object value = field.get(instance);
+            if (value == null) continue; // Skip nulls in INSERT
+
+            if (!first) {
+                columns.append(", ");
+                values.append(", ");
+            }
+            columns.append(col.name);
+            values.append(SQLFormat.literal(value));
+            first = false;
+        }
+
+        String sql = "INSERT INTO " + table.tableName + " (" + columns + ") VALUES (" + values + ");";
+
+        if (connection == null) {
+            throw new RuntimeException("ORM is not connected to a database");
+        }
+
+        try (java.sql.Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate(sql.substring(0, sql.length() - 1)); // Remove semicolon
+        }
+    }
+
+    /**
+     * Generate and execute an UPDATE statement for a modified instance,
+     * sending only the columns that have changed.
+     */
+    private <T> void updateInstance(T instance, Map<String, Object> snapshot, Table table) throws Exception {
+        Class<?> clazz = instance.getClass();
+        StringBuilder setClause = new StringBuilder();
+
+        boolean first = true;
+        for (Column col : table.columnsList.values()) {
+            Field field;
+            try {
+                field = clazz.getDeclaredField(col.name);
+            } catch (NoSuchFieldException e) {
+                continue;
+            }
+            field.setAccessible(true);
+            Object currentValue = field.get(instance);
+            Object snapshotValue = snapshot.get(col.name);
+
+            // Skip if unchanged
+            if (currentValue == null && snapshotValue == null) continue;
+            if (currentValue != null && currentValue.equals(snapshotValue)) continue;
+
+            if (!first) setClause.append(", ");
+            setClause.append(col.name).append(" = ").append(SQLFormat.literal(currentValue));
+            first = false;
+        }
+
+        if (setClause.length() == 0) {
+            // Nothing changed, nothing to update
+            return;
+        }
+
+        if (table.primaryKey == null) {
+            throw new RuntimeException(
+                "Table " + table.tableName + " has no primary key; cannot update by ID"
+            );
+        }
+
+        Field pkField;
+        try {
+            pkField = clazz.getDeclaredField(table.primaryKey.column.name);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(
+                "Primary key field " + table.primaryKey.column.name + " not found", e
+            );
+        }
+        pkField.setAccessible(true);
+        Object pkValue = pkField.get(instance);
+
+        if (pkValue == null) {
+            throw new RuntimeException("Cannot update: primary key is null");
+        }
+
+        String sql = "UPDATE " + table.tableName +
+                     " SET " + setClause +
+                     " WHERE " + table.primaryKey.column.name + " = " + SQLFormat.literal(pkValue) + ";";
+
+        if (connection == null) {
+            throw new RuntimeException("ORM is not connected to a database");
+        }
+
+        try (java.sql.Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate(sql.substring(0, sql.length() - 1)); // Remove semicolon
+        }
+    }
+
+    /**
+     * Return the Table for a registered class (package-private for UpdateBuilder/DeleteBuilder).
+     */
+    Table getTableFor(Class<?> clazz) {
+        return tables.get(clazz);
+    }
 }

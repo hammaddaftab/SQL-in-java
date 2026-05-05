@@ -353,6 +353,37 @@ public class Select_test {
             + "LIMIT 50 OFFSET 100;"
         );
 
+        // 17. FK eager-loading via .of(instance)
+        //     Find the FK on a related instance's table that points to our table,
+        //     extract the value, and add a WHERE clause matching our PK.
+        
+        // Set up a Department table and User FK reference
+        Table Departments = Table.create("Departments")
+            .has("Id").asString(3)
+            .has("Name").asString(50);
+        Departments.c("Id").is(Constraint.PRIMARYKEY);
+        
+        Table UsersWithFK = Table.create("Users")
+            .has("Id").asInt().is(Constraint.PRIMARYKEY)
+            .has("DeptId").asString(3).refers(Departments.c("Id"));
+        
+        ORM ormWithFK = new ORM();
+        ormWithFK.register(Department.class, Departments);
+        ormWithFK.register(User.class, UsersWithFK);
+        
+        // Simulate a user instance fetched from DB
+        User userWithDept = new User();
+        userWithDept.Id = 1;
+        userWithDept.DeptId = "ENG";
+        
+        // .of(userWithDept) finds the FK (DeptId -> Departments.Id),
+        // extracts "ENG", and builds WHERE Id = 'ENG'
+        assertSQL(
+            "17. FK eager-load via .of(instance)",
+            ormWithFK.from(Department.class).of(userWithDept).generateSQL(),
+            "SELECT * FROM Departments WHERE Id = 'ENG';"
+        );
+
         // --- summary ---------------------------------------------------------
         System.out.println("------------------------------------");
         System.out.println("Passed: " + passed + "    Failed: " + failed);
@@ -378,4 +409,12 @@ class User {
     String Status;
     String DeptId;
     Integer CreatedAt;
+}
+
+/**
+ * POJO for the Departments table (used in FK eager-load test).
+ */
+class Department {
+    String Id;
+    String Name;
 }

@@ -233,8 +233,11 @@ public class ORM {
                 throw new RuntimeException("Cannot update: primary key is null");
             }
 
-            // Delegate to UpdateBuilder, only setting changed columns
-            UpdateBuilder<T> ub = update(clazz);
+            // Delegate to UpdateBuilder, only setting changed columns.
+            // Cast is safe: clazz came from instance.getClass(), and instance is T.
+            @SuppressWarnings("unchecked")
+            Class<T> classTSafe = (Class<T>) clazz;
+            UpdateBuilder<T> ub = update(classTSafe);
             boolean hasChanges = false;
 
             for (Column col : table.columnsList.values()) {

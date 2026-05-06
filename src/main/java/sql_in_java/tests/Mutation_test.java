@@ -1,6 +1,6 @@
-package tests;
+package sql_in_java.tests;
 
-import src.sql_in_java.*;
+import sql_in_java.*;
 
 /**
  * Proper mutation tests that actually call the ORM builders and compare generated SQL.
@@ -46,14 +46,14 @@ public class Mutation_test {
     public static void main(String[] args) throws Exception {
         ORM orm = new ORM();
 
-        Table Users = Table.create("Users")
+        Table Users = new Table("Users")
             .has("Id").asInt().is(Constraint.PRIMARYKEY)
             .has("Name").asString(100)
             .has("Age").asInt()
             .has("Status").asString(50);
         orm.register(User.class, Users);
 
-        Table Accounts = Table.create("Accounts")
+        Table Accounts = new Table("Accounts")
             .has("Id").asInt().is(Constraint.PRIMARYKEY)
             .has("Email").asString(150)
             .has("Type").asString(20);

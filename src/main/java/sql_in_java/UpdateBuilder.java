@@ -1,22 +1,27 @@
-package src.sql_in_java;
+package sql_in_java;
 
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Fluent builder for bulk DELETE statements.
+ * Fluent builder for bulk UPDATE statements.
  * 
  * Usage:
- *   orm.delete(User.class)
- *      .where(Users.c("Status").eq("archived"))
+ *   orm.update(User.class)
+ *      .set("Status", "inactive")
+ *      .set("UpdatedAt", now)
+ *      .where(Users.c("Age").below(18))
  *      .execute();
  */
-public class DeleteBuilder<T> {
+public class UpdateBuilder<T> {
     private ORM orm;
     private Class<T> entityClass;
     private Table table;
+    private List<SetClause> setClauses = new ArrayList<>();
     private Predicate wherePredicate = null;
 
-    public DeleteBuilder(ORM orm, Class<T> entityClass) {
+    public UpdateBuilder(ORM orm, Class<T> entityClass) {
         this.orm = orm;
         this.entityClass = entityClass;
         this.table = orm.getTableFor(entityClass);
@@ -28,9 +33,18 @@ public class DeleteBuilder<T> {
     }
 
     /**
+     * Set a column to a value (by string column name).
+     * For bulk updates where you're not working with an instance.
+     */
+    public UpdateBuilder<T> set(String columnName, Object value) {
+        setClauses.add(new SetClause(columnName, value));
+        return this;
+    }
+
+    /**
      * Add a WHERE predicate.
      */
-    public DeleteBuilder<T> where(Predicate predicate) {
+    public UpdateBuilder<T> where(Predicate predicate) {
         if (predicate == null) {
             throw new RuntimeException("WHERE predicate cannot be null");
         }
@@ -41,7 +55,7 @@ public class DeleteBuilder<T> {
     /**
      * Refine the WHERE with AND.
      */
-    public DeleteBuilder<T> and(Predicate predicate) {
+    public UpdateBuilder<T> and(Predicate predicate) {
         if (wherePredicate == null) {
             this.wherePredicate = predicate;
         } else {
@@ -53,7 +67,7 @@ public class DeleteBuilder<T> {
     /**
      * Refine the WHERE with OR.
      */
-    public DeleteBuilder<T> or(Predicate predicate) {
+    public UpdateBuilder<T> or(Predicate predicate) {
         if (wherePredicate == null) {
             this.wherePredicate = predicate;
         } else {
@@ -63,11 +77,17 @@ public class DeleteBuilder<T> {
     }
 
     /**
-     * Generate the DELETE SQL statement (for inspection / debugging).
+     * Generate the UPDATE SQL statement (for inspection / debugging).
      */
     public String generateSQL() {
         StringBuilder sb = new StringBuilder();
-        sb.append("DELETE FROM ").append(table.tableName);
+        sb.append("UPDATE ").append(table.tableName).append(" SET ");
+
+        for (int i = 0; i < setClauses.size(); i++) {
+            if (i > 0) sb.append(", ");
+            SetClause sc = setClauses.get(i);
+            sb.append(sc.columnName).append(" = ").append(SQLFormat.literal(sc.value));
+        }
 
         if (wherePredicate != null) {
             sb.append(" WHERE ").append(wherePredicate.toSQL());
@@ -78,11 +98,11 @@ public class DeleteBuilder<T> {
     }
 
     /**
-     * Execute the DELETE and return the number of rows affected.
+     * Execute the UPDATE and return the number of rows affected.
      */
     public int execute() throws Exception {
         String sql = generateSQL();
-
+        
         // Remove trailing semicolon for JDBC
         if (sql.endsWith(";")) {
             sql = sql.substring(0, sql.length() - 1);
@@ -94,6 +114,19 @@ public class DeleteBuilder<T> {
 
         try (Statement stmt = orm.getConnection().createStatement()) {
             return stmt.executeUpdate(sql);
+        }
+    }
+
+    /**
+     * Helper class to hold SET column = value pairs.
+     */
+    private static class SetClause {
+        String columnName;
+        Object value;
+
+        SetClause(String columnName, Object value) {
+            this.columnName = columnName;
+            this.value = value;
         }
     }
 }

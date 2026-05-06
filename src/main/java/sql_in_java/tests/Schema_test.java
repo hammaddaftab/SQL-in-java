@@ -1,6 +1,6 @@
-package tests;
+package sql_in_java.tests;
 
-import src.sql_in_java.*;
+import sql_in_java.*;
 
 /**
  * Test for orm.createSchema() — generates DDL for all registered tables.
@@ -28,13 +28,13 @@ public class Schema_test {
         ORM orm = new ORM();
 
         // Define Users table with FK to Departments
-        Table Users = Table.create("Users")
+        Table Users = new Table("Users")
             .has("Id").asInt().is(Constraint.PRIMARYKEY)
             .has("Name").asString(100)
             .has("DeptId").asString(3);
 
         // Define Departments table
-        Table Departments = Table.create("Departments")
+        Table Departments = new Table("Departments")
             .has("Id").asString(3).is(Constraint.PRIMARYKEY)
             .has("Name").asString(50);
 

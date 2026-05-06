@@ -1,7 +1,7 @@
-package src.sql_in_java;
+package sql_in_java;
 
 import java.util.*;
-import src.sql_in_java.Clauses.*;
+import sql_in_java.Clauses.*;
 
 public class ColumnReference {
     Table table;

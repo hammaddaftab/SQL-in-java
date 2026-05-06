@@ -1,9 +1,10 @@
-package src.sql_in_java;
+package sql_in_java;
 
 public enum Constraint {
     NOTNULL("NOT NULL"),
     UNIQUE("UNIQUE"),
-    PRIMARYKEY("PRIMARY KEY");
+    PRIMARYKEY("PRIMARY KEY"),
+    AUTOINCREMENT("AUTOINCREMENT");
 
     String SQLString; 
 

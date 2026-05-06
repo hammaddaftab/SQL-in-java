@@ -1,4 +1,4 @@
-package src.sql_in_java;
+package sql_in_java;
 
 import java.util.ArrayList;
 import java.util.Arrays;

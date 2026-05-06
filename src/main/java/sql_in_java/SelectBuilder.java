@@ -1,4 +1,4 @@
-package src.sql_in_java;
+package sql_in_java;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -10,7 +10,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import src.sql_in_java.Clauses.*;
+import sql_in_java.Clauses.*;
 
 /**
  * Fluent builder for SELECT statements.
@@ -291,18 +291,27 @@ public class SelectBuilder<T> {
      *
      * The class must have an accessible no-arg constructor.
      */
-    public List<T> fetch() throws SQLException, IllegalAccessException {
-        String sql = generateSQL();
+    public List<T> fetch() {
+        String sql;
+        try {
+            sql = generateSQL();
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException("Unable to generate sql for fetching.", e);
+        }
         Connection conn = orm.getConnection();
 
         List<T> results = new ArrayList<>();
         try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+            ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 T row = newInstance();
                 mapRowInto(rs, row);
                 results.add(row);
             }
+        } catch (SQLException e) {
+            throw new RuntimeException("Cannot execute query: " + sql, e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException("Couldn't map fetched row into POJO instance.", e);
         }
         return results;
     }

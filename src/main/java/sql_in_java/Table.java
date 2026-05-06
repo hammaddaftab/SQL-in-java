@@ -1,4 +1,4 @@
-package src.sql_in_java;
+package sql_in_java;
 
 import java.sql.Timestamp;
 import java.sql.Date;
@@ -85,6 +85,11 @@ public class Table {
             "Column " + columnName + " not found in " + tableName + ""
         );
         return new ColumnReference(this, column);
+    }
+
+    // delegate is to ColumnReference Object for the active column for inline constaint declaration
+    public Table is(Constraint constraint) {
+        return this.c(activeColumnForChaining).is(constraint);
     }
 
     public String toSQL() {

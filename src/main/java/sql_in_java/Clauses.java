@@ -1,4 +1,4 @@
-package src.sql_in_java;
+package sql_in_java;
 
 public class Clauses {
     public static class OrderByClause {

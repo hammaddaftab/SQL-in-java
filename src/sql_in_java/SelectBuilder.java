@@ -106,6 +106,80 @@ public class SelectBuilder<T> {
         return this;
     }
 
+    /**
+     * Eager-load: find the foreign key on relatedInstance's table that points to T,
+     * extract the FK value, and add a WHERE clause matching T's primary key.
+     * 
+     * Example:
+     *   User user = orm.select(...).fetch().get(0);
+     *   Account account = orm.select(Account.class).of(user).fetch().get(0);
+     *   // finds FK on User that points to Account, extracts value, runs
+     *   // SELECT * FROM Account WHERE Id = user.AccountId (or whatever the FK is)
+     */
+    public SelectBuilder<T> of(Object relatedInstance) throws Exception {
+        Class<?> relatedClazz = relatedInstance.getClass();
+        Table relatedTable = orm.tables.get(relatedClazz);
+        
+        if (relatedTable == null) {
+            throw new RuntimeException(
+                relatedClazz.getName() + " is not registered with the ORM"
+            );
+        }
+
+        // Find the FK on relatedTable that points to this table (T)
+        ColumnReference targetFK = null;
+        String fkColumnName = null;
+        
+        for (String localCol : relatedTable.foreignKeys.keySet()) {
+            ColumnReference fk = relatedTable.foreignKeys.get(localCol);
+            
+            // Check if this FK points to our target table
+            if (fk.table == this.table) {
+                targetFK = fk;
+                fkColumnName = localCol;
+                break;
+            }
+        }
+
+        if (targetFK == null) {
+            throw new RuntimeException(
+                "No foreign key found on " + relatedClazz.getName() + 
+                " that references " + this.table.tableName
+            );
+        }
+
+        // Extract the FK value from relatedInstance
+        java.lang.reflect.Field fkField;
+        try {
+            fkField = relatedClazz.getDeclaredField(fkColumnName);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(
+                "FK field " + fkColumnName + " not found on " + relatedClazz.getName(), e
+            );
+        }
+        
+        fkField.setAccessible(true);
+        Object fkValue = fkField.get(relatedInstance);
+
+        if (fkValue == null) {
+            throw new RuntimeException(
+                "Foreign key field " + fkColumnName + " is null on " + 
+                relatedClazz.getSimpleName() + " instance; cannot load related " + 
+                this.table.tableName
+            );
+        }
+
+        // Build WHERE clause: this.table.primaryKey = fkValue
+        if (this.table.primaryKey == null) {
+            throw new RuntimeException(
+                "Table " + this.table.tableName + " has no primary key; cannot use .of()"
+            );
+        }
+
+        Predicate pkPredicate = this.table.primaryKey.eq(fkValue);
+        return this.where(pkPredicate);
+    }
+
 
     // ---------- GROUP BY / HAVING ----------
 

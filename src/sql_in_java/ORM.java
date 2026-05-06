@@ -412,4 +412,43 @@ public class ORM {
     Table getTableFor(Class<?> clazz) {
         return tables.get(clazz);
     }
+
+    /**
+     * Generate CREATE TABLE statements for all registered tables.
+     * Emits the DDL that would create the database schema.
+     * 
+     * Returns a multi-statement string with one CREATE TABLE per registered table,
+     * separated by newlines. Order is insertion order (LinkedHashMap preserves this).
+     * 
+     * Example output:
+     *   CREATE TABLE Users (
+     *       Id INT PRIMARY KEY,
+     *       Name VARCHAR(100),
+     *       Age INT
+     *   );
+     *   
+     *   CREATE TABLE Departments (
+     *       Id VARCHAR(3) PRIMARY KEY,
+     *       Name VARCHAR(50)
+     *   );
+     * 
+     * Usage:
+     *   String ddl = orm.createSchema();
+     *   System.out.println(ddl);
+     *   // or execute against database: connection.createStatement().executeUpdate(ddl);
+     */
+    public String createSchema() {
+        StringBuilder sb = new StringBuilder();
+        int tableCount = 0;
+
+        for (Table table : tables.values()) {
+            if (tableCount > 0) {
+                sb.append("\n\n"); // blank line between tables for readability
+            }
+            sb.append(table.toSQL());
+            tableCount++;
+        }
+
+        return sb.toString();
+    }
 }

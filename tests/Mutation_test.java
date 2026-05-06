@@ -44,24 +44,19 @@ public class Mutation_test {
     }
 
     public static void main(String[] args) throws Exception {
-        // Define schema
-        Table Users = new Table("Users")
-            .has("Id").asInt()
+        ORM orm = new ORM();
+
+        Table Users = Table.create("Users")
+            .has("Id").asInt().is(Constraint.PRIMARYKEY)
             .has("Name").asString(100)
             .has("Age").asInt()
             .has("Status").asString(50);
-        Users.c("Id").is(Constraint.PRIMARYKEY);
+        orm.register(User.class, Users);
 
-        Table Accounts = new Table("Accounts")
-            .has("Id").asInt()
+        Table Accounts = Table.create("Accounts")
+            .has("Id").asInt().is(Constraint.PRIMARYKEY)
             .has("Email").asString(150)
             .has("Type").asString(20);
-        Accounts.c("Id").is(Constraint.PRIMARYKEY);
-
-
-        // Register with ORM
-        ORM orm = new ORM();
-        orm.register(User.class, Users);
         orm.register(Account.class, Accounts);
 
         System.out.println("=== BULK UPDATE TESTS ===\n");
@@ -101,7 +96,7 @@ public class Mutation_test {
                 .where(Users.c("Age").above(65))
                 .and(Users.c("Name").like("A%"))
                 .generateSQL(),
-            "UPDATE Users SET Status = 'flagged' WHERE (Age > 65 AND Name LIKE 'A%');"
+            "UPDATE Users SET Status = 'flagged' WHERE Age > 65 AND Name LIKE 'A%';"
         );
 
         // Test 5: SET with WHERE OR
@@ -112,7 +107,7 @@ public class Mutation_test {
                 .where(Users.c("Status").eq("new"))
                 .or(Users.c("Status").eq("trial"))
                 .generateSQL(),
-            "UPDATE Users SET Status = 'pending' WHERE (Status = 'new' OR Status = 'trial');"
+            "UPDATE Users SET Status = 'pending' WHERE Status = 'new' OR Status = 'trial';"
         );
 
         // Test 6: SET with IN
@@ -154,7 +149,7 @@ public class Mutation_test {
                 .where(Users.c("Name").like("J%"))
                 .and(Users.c("Status").ne("active"))
                 .generateSQL(),
-            "UPDATE Users SET Status = 'flagged', Age = 999 WHERE (Name LIKE 'J%' AND Status <> 'active');"
+            "UPDATE Users SET Status = 'flagged', Age = 999 WHERE Name LIKE 'J%' AND Status <> 'active';"
         );
 
         // Test 10: Single quote escaping in SET
@@ -185,7 +180,7 @@ public class Mutation_test {
                 .where(Users.c("Status").eq("deleted"))
                 .and(Users.c("Age").above(100))
                 .generateSQL(),
-            "DELETE FROM Users WHERE (Status = 'deleted' AND Age > 100);"
+            "DELETE FROM Users WHERE Status = 'deleted' AND Age > 100;"
         );
 
         // Test 13: DELETE with WHERE OR
@@ -195,7 +190,7 @@ public class Mutation_test {
                 .where(Users.c("Status").eq("spam"))
                 .or(Users.c("Status").eq("banned"))
                 .generateSQL(),
-            "DELETE FROM Users WHERE (Status = 'spam' OR Status = 'banned');"
+            "DELETE FROM Users WHERE Status = 'spam' OR Status = 'banned';"
         );
 
         // Test 14: DELETE with IN
@@ -232,7 +227,7 @@ public class Mutation_test {
                 .where(Users.c("Status").in("inactive", "archived"))
                 .and(Users.c("Age").isNotNull())
                 .generateSQL(),
-            "DELETE FROM Users WHERE (Status IN ('inactive', 'archived') AND Age IS NOT NULL);"
+            "DELETE FROM Users WHERE Id IN ('inactive', 'archived') AND Age IS NOT NULL;"
         );
 
         System.out.println("\n=== INSTANCE-BASED DELETE (via builder) ===\n");

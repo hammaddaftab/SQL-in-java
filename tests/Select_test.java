@@ -356,33 +356,32 @@ public class Select_test {
         // 17. FK eager-loading via .of(instance)
         //     Find the FK on a related instance's table that points to our table,
         //     extract the value, and add a WHERE clause matching our PK.
-
-        // SET UP
-        Table Departments = new Table("Departments")
-            .has("DeptId").asString(32)
-            .has("Email").asString(150)
-            .has("Type").asString(20);
-        Departments.c("DeptId").is(Constraint.PRIMARYKEY);
-
-        Table UsersWithFK = new Table("Users")
-            .has("Id").asInt();
-        UsersWithFK.c("Id").is(Constraint.PRIMARYKEY);
-        UsersWithFK.refers(Departments.c("DeptId"));
-       
-        orm.register(UserWithFK.class, UsersWithFK);
-        orm.register(Department.class, Departments);
-
+        
+        // Set up a Department table and User FK reference
+        Table Departments = Table.create("Departments")
+            .has("Id").asString(3)
+            .has("Name").asString(50);
+        Departments.c("Id").is(Constraint.PRIMARYKEY);
+        
+        Table UsersWithFK = Table.create("Users")
+            .has("Id").asInt().is(Constraint.PRIMARYKEY)
+            .has("DeptId").asString(3).refers(Departments.c("Id"));
+        
+        ORM ormWithFK = new ORM();
+        ormWithFK.register(Department.class, Departments);
+        ormWithFK.register(User.class, UsersWithFK);
+        
         // Simulate a user instance fetched from DB
-        UserWithFK userWithDept = new UserWithFK();
-        userWithDept.Id = "32";
+        User userWithDept = new User();
+        userWithDept.Id = 1;
         userWithDept.DeptId = "ENG";
         
         // .of(userWithDept) finds the FK (DeptId -> Departments.Id),
         // extracts "ENG", and builds WHERE Id = 'ENG'
         assertSQL(
             "17. FK eager-load via .of(instance)",
-            orm.from(Department.class).of(userWithDept).generateSQL(),
-            "SELECT * FROM Departments WHERE DeptId = 'ENG';"
+            ormWithFK.from(Department.class).of(userWithDept).generateSQL(),
+            "SELECT * FROM Departments WHERE Id = 'ENG';"
         );
 
         // --- summary ---------------------------------------------------------
@@ -416,12 +415,6 @@ class User {
  * POJO for the Departments table (used in FK eager-load test).
  */
 class Department {
-    String DeptId;
-    String Email;
-    String Type;
-    String Name;
-}
-class UserWithFK {
     String Id;
-    String DeptId;
+    String Name;
 }

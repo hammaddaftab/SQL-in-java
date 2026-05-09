@@ -6,6 +6,7 @@ public class CustomerOrder {
     public Integer customerID;
     public Integer tableID;
     public Long time;
+    public String status;
     public String paymentMethod;
 
     public CustomerOrder() {}
@@ -14,6 +15,7 @@ public class CustomerOrder {
         this.orderID = orderID;
     }
 
+    public String getStatus() { return status; }
     public Integer getOrderID() { return orderID; }
     public Integer getCustomerID() { return customerID; }
     public Integer getTableID() { return tableID; }

@@ -13,7 +13,7 @@ public class Main {
     static final String SECRET_KEY = "unguessable_random_number";
     static final String ADMIN_PASSWORD = "admin123";
 
-    static DatabaseQueries dao = new StubDB();
+    static DatabaseQueries dao;
 
     // ---- Auth helpers ----
 
@@ -54,6 +54,7 @@ public class Main {
         ORM orm = new ORM();
         orm.connect(url, user, password);
         Database.createTables(orm);
+        dao = new StudDB(orm);
 
         Javalin app = Javalin.create(config -> {
             config.staticFiles.add("/public");
@@ -384,54 +385,4 @@ public class Main {
         });
     }
 
-    // =====================================================================
-    // TEMPORARY STUB — replace with your DatabaseQueries implementation
-    // =====================================================================
-
-    private static class StubDB implements DatabaseQueries {
-
-        private RuntimeException notImpl() {
-            return new RuntimeException("DatabaseQueries method not implemented yet");
-        }
-
-        @Override public List<Product> getAllProducts() { throw notImpl(); }
-        @Override public Product getProductById(int id) { throw notImpl(); }
-        @Override public int addProduct(Product p) { throw notImpl(); }
-        @Override public void updateProduct(Product p) { throw notImpl(); }
-        @Override public void deleteProduct(int id) { throw notImpl(); }
-
-        @Override public Customer getCustomerById(int id) { throw notImpl(); }
-
-        @Override public int addOrder(CustomerOrder o) { throw notImpl(); }
-        @Override public CustomerOrder getOrderById(int id) { throw notImpl(); }
-        @Override public List<CustomerOrder> getOrdersByCustomer(int customerId) { throw notImpl(); }
-        @Override public List<CustomerOrder> getAllOrders() { throw notImpl(); }
-        @Override public List<CustomerOrder> getOrdersByStatus(String status) { throw notImpl(); }
-        @Override public void updateOrderStatus(int orderId, String status) { throw notImpl(); }
-
-        @Override public int addOrderItem(OrderItem item) { throw notImpl(); }
-        @Override public List<Map<String, Object>> getOrderItemsWithDetails(int orderId) { throw notImpl(); }
-
-        @Override public void addOnlineOrder(int orderId) { throw notImpl(); }
-        @Override public void confirmOnlineOrder(int orderId) { throw notImpl(); }
-        @Override public boolean isOnlineOrder(int orderId) { throw notImpl(); }
-
-        @Override public List<Ingredient> getAllIngredients() { throw notImpl(); }
-        @Override public List<Ingredient> getLowStockIngredients() { throw notImpl(); }
-
-        @Override public int addRestockRequest(RestockRequest r) { throw notImpl(); }
-        @Override public List<Map<String, Object>> getAllRestockRequestsWithDetails() { throw notImpl(); }
-        @Override public int countPendingRestocks() { throw notImpl(); }
-
-        @Override public List<Supplier> getAllSuppliers() { throw notImpl(); }
-        @Override public Supplier getSupplierById(int id) { throw notImpl(); }
-
-        @Override public List<CafeTable> getAllTables() { throw notImpl(); }
-
-        @Override public int countOrdersToday() { throw notImpl(); }
-        @Override public int countOrdersByStatus(String status) { throw notImpl(); }
-        @Override public double getTotalSalesToday() { throw notImpl(); }
-        @Override public int countLowStockItems() { throw notImpl(); }
-        @Override public List<Map<String, Object>> getTopSellingProducts(int limit) { throw notImpl(); }
-    }
 }

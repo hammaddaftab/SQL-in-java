@@ -49,6 +49,7 @@ public class Database {
             .has("customerID").asInt().is(Constraint.NOTNULL)
             .has("tableID").asInt()
             .has("time").asInt()
+            .has("status").asString()
             .has("paymentMethod").asString()
             .refers(Customer.c("customerID"))
             .refers(CafeTable.c("tableID"));
@@ -100,6 +101,7 @@ public class Database {
         orm.register(OrderItem.class, OrderItem);
     }
 
+    // does the work of both, registers and creates
     public static void createTables(ORM orm) {
         Database.registerTables(orm);
         String tables = orm.createSchema();

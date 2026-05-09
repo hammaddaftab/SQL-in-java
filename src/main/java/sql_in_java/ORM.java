@@ -409,7 +409,7 @@ public class ORM {
     /**
      * Return the Table for a registered class (package-private for UpdateBuilder/DeleteBuilder).
      */
-    Table getTableFor(Class<?> clazz) {
+    public Table getTableFor(Class<?> clazz) {
         return tables.get(clazz);
     }
 

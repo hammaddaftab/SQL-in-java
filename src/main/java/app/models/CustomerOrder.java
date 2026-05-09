@@ -13,4 +13,10 @@ public class CustomerOrder {
     public CustomerOrder(Integer orderID) {
         this.orderID = orderID;
     }
+
+    public Integer getOrderID() { return orderID; }
+    public Integer getCustomerID() { return customerID; }
+    public Integer getTableID() { return tableID; }
+    public Long getTime() { return time; }
+    public String getPaymentMethod() { return paymentMethod; }
 }

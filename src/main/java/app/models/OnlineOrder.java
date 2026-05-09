@@ -10,4 +10,7 @@ public class OnlineOrder {
     public OnlineOrder(Integer orderID) {
         this.orderID = orderID;
     }
+
+    public Integer getOrderID() { return orderID; }
+    public Boolean getIsConfirmed() { return isConfirmed; }
 }

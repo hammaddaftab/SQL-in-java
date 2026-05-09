@@ -12,4 +12,9 @@ public class Product {
     public Product(Integer productID) {
         this.productID = productID;
     }
+
+    public Integer getProductID() { return productID; }
+    public String getName() { return name; }
+    public Double getPrice() { return price; }
+    public String getCategory() { return category; }
 }

@@ -11,4 +11,8 @@ public class CafeTable {
     public CafeTable(Integer tableID) {
         this.tableID = tableID;
     }
+
+    public Integer getTableID() { return tableID; }
+    public String getLocation() { return location; }
+    public Integer getCapacity() { return capacity; }
 }

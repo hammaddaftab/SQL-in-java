@@ -14,4 +14,11 @@ public class RestockRequest {
     public RestockRequest(Integer requestID) {
         this.requestID = requestID;
     }
+
+    public Integer getRequestID() { return requestID; }
+    public Integer getIngredientID() { return ingredientID; }
+    public Integer getSupplierID() { return supplierID; }
+    public Integer getQuantityRequested() { return quantityRequested; }
+    public String getStatus() { return status; }
+    public Long getRequestedAt() { return requestedAt; }
 }

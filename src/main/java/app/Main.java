@@ -131,8 +131,14 @@ public class Main {
             if (paymentMethod == null) paymentMethod = "cash";
             String tableIdStr = ctx.formParam("tableID");
 
-            String[] productIDs = ctx.formParams("productID").toArray(new String[0]);
-            String[] quantities = ctx.formParams("quantity").toArray(new String[0]);
+            List<String> pidList = ctx.formParams("productID");
+            List<String> qtyList = ctx.formParams("quantity");
+            if (pidList == null || qtyList == null) {
+                ctx.status(400).json(Map.of("error", "Invalid form data"));
+                return;
+            }
+            String[] productIDs = pidList.toArray(new String[0]);
+            String[] quantities = qtyList.toArray(new String[0]);
 
             if (productIDs.length == 0) {
                 ctx.status(400).json(Map.of("error", "No items in order"));
@@ -189,7 +195,7 @@ public class Main {
             int customerId = getCustomerId(ctx);
             int orderId = Integer.parseInt(ctx.pathParam("id"));
             CustomerOrder order = dao.getOrderById(orderId);
-            if (order == null || !order.customerID.equals(customerId)) {
+            if (order == null || !Objects.equals(order.customerID, customerId)) {
                 ctx.status(404).json(Map.of("error", "Order not found"));
                 return;
             }

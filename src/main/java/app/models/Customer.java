@@ -11,4 +11,8 @@ public class Customer {
     public Customer(Integer customerID) {
         this.customerID = customerID;
     }
+
+    public Integer getCustomerID() { return customerID; }
+    public String getFirstName() { return firstName; }
+    public String getLastName() { return lastName; }
 }

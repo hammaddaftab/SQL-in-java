@@ -33,11 +33,17 @@ public class Main {
         return writer.toString();
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
 
-        // equivalent of sqlite3* db = openDB()
+        String url = "jdbc:mysql://localhost:3306/";
+        String user = "root";
+        String password = System.getenv("DB_PASSWORD");
+        if (password == "" || password == null) {
+            throw new Exception("Password empty.");
+        }
+
         ORM orm = new ORM();
-        orm.connect("localhost:5576", "root", "4321");
+        orm.connect(url, user, password);
         Database.createTables(orm);
 
         // equivalent of crow::SimpleApp app
@@ -63,3 +69,4 @@ public class Main {
         });
     }
 }
+//nothing important 

@@ -5,7 +5,6 @@
   <artifactId>sql-in-java</artifactId>
   <version>1.0.0</version>
   <build>
-    <sourceDirectory>${project.basedir}</sourceDirectory>
     <plugins>
       <plugin>
         <artifactId>maven-shade-plugin</artifactId>

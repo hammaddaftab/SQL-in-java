@@ -1,96 +1,113 @@
 package app;
 
+import java.sql.SQLException;
 import java.util.List;
 
-import app.models.Order;
-import app.models.OrderItem;
-import app.models.Product;
+import app.models.*;
 import sql_in_java.ORM;
 import sql_in_java.Table;
 import sql_in_java.Constraint;
 
 public class Database {
 
-    public static void createTables(ORM orm) {
+    public static void registerTables(ORM orm) {
         Table Supplier = new Table("Supplier")
-            .has("SupplierID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
-            .has("Name").asString()
-            .has("Contact").asString()
-            .has("Email").asString()
-            .has("Address").asString()
-            .has("Rating").asDecimal();
+            .has("supplierID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
+            .has("name").asString()
+            .has("contact").asString()
+            .has("email").asString()
+            .has("address").asString()
+            .has("rating").asDecimal();
 
         Table Ingredient = new Table("Ingredient")
-            .has("IngredientID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
-            .has("Name").asString()
-            .has("Type").asString()
-            .has("Stock").asInt()
-            .has("RestockThreshold").asInt()
-            .has("SupplierID").asInt().is(Constraint.NOTNULL)
-            .refers(Supplier.c("SupplierID"));
+            .has("ingredientID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
+            .has("name").asString()
+            .has("type").asString()
+            .has("stock").asInt()
+            .has("restockThreshold").asInt()
+            .has("supplierID").asInt().is(Constraint.NOTNULL)
+            .refers(Supplier.c("supplierID"));
 
         Table Product = new Table("Product")
-            .has("ProductID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
-            .has("Name").asString()
-            .has("Price").asDecimal()
-            .has("Category").asString();
-
+            .has("productID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
+            .has("name").asString()
+            .has("price").asDecimal()
+            .has("category").asString();
 
         Table CafeTable = new Table("CafeTable")
-            .has("TableID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
-            .has("Capacity").asInt()
-            .has("Location").asString();
+            .has("tableID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
+            .has("capacity").asInt()
+            .has("location").asString();
 
         Table Customer = new Table("Customer")
-            .has("CustomerID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
-            .has("FirstName").asString()
-            .has("LastName").asString();
+            .has("customerID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
+            .has("firstName").asString()
+            .has("lastName").asString();
 
-        Table Order = new Table("Order")
-            .has("OrderID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
-            .has("CustomerID").asInt().is(Constraint.NOTNULL)
-            .has("TableID").asInt().is(Constraint.NOTNULL)
-            .has("Time").asInt()
-            .has("PaymentMethod").asString()
-            .refers(Customer.c("CustomerID"))
-            .refers(CafeTable.c("TableID"));
+        Table CustomerOrder = new Table("CustomerOrder")
+            .has("orderID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
+            .has("customerID").asInt().is(Constraint.NOTNULL)
+            .has("tableID").asInt()
+            .has("time").asInt()
+            .has("paymentMethod").asString()
+            .refers(Customer.c("customerID"))
+            .refers(CafeTable.c("tableID"));
 
         Table OnlineOrder = new Table("OnlineOrder")
-            .has("OrderID").asInt().is(Constraint.PRIMARYKEY)  // no AUTOINCREMENT — shares PK with Order
-            .has("Is_Confirmed").asBoolean()
-            .refers(Order.c("OrderID"));
-
+            .has("orderID").asInt().is(Constraint.PRIMARYKEY)
+            .has("isConfirmed").asBoolean()
+            .refers(CustomerOrder.c("orderID"));
 
         Table RestockRequest = new Table("RestockRequest")
-            .has("RequestID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
-            .has("IngredientID").asInt().is(Constraint.NOTNULL)
-            .has("SupplierID").asInt().is(Constraint.NOTNULL)
-            .has("QuantityRequested").asInt()
-            .has("Status").asString()
-            .has("RequestedAt").asInt()
-            .refers(Ingredient.c("IngredientID"))
-            .refers(Supplier.c("SupplierID"));
-
+            .has("requestID").asInt().is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
+            .has("ingredientID").asInt().is(Constraint.NOTNULL)
+            .has("supplierID").asInt().is(Constraint.NOTNULL)
+            .has("quantityRequested").asInt()
+            .has("status").asString()
+            .has("requestedAt").asInt()
+            .refers(Ingredient.c("ingredientID"))
+            .refers(Supplier.c("supplierID"));
 
         Table ProductIngredient = new Table("ProductIngredient")
-            .has("ProductIngredientID").asInt()
-                .is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))  // surrogate PK
-            .has("ProductID").asInt().is(Constraint.NOTNULL)
-            .has("IngredientID").asInt().is(Constraint.NOTNULL)
-            .has("QuantityRequired").asInt()
-            .refers(Product.c("ProductID"))
-            .refers(Ingredient.c("IngredientID"));
+            .has("productIngredientID").asInt()
+                .is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
+            .has("productID").asInt().is(Constraint.NOTNULL)
+            .has("ingredientID").asInt().is(Constraint.NOTNULL)
+            .has("quantityRequired").asInt()
+            .refers(Product.c("productID"))
+            .refers(Ingredient.c("ingredientID"));
 
         Table OrderItem = new Table("OrderItem")
-            .has("OrderItemID").asInt()
-                .is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))  // surrogate PK
-            .has("OrderID").asInt().is(Constraint.NOTNULL)
-            .has("ProductID").asInt().is(Constraint.NOTNULL)
-            .has("Quantity").asInt()
-            .has("PreparedCount").asInt()
-            .has("PriceAtOrder").asDecimal()
-            .refers(Order.c("OrderID"))
-            .refers(Product.c("ProductID"));
+            .has("orderItemID").asInt()
+                .is(Constraint.PRIMARYKEY.and(Constraint.AUTOINCREMENT))
+            .has("orderID").asInt().is(Constraint.NOTNULL)
+            .has("productID").asInt().is(Constraint.NOTNULL)
+            .has("quantity").asInt()
+            .has("preparedCount").asInt()
+            .has("priceAtOrder").asDecimal()
+            .refers(CustomerOrder.c("orderID"))
+            .refers(Product.c("productID"));
+
+        orm.register(Supplier.class, Supplier);
+        orm.register(Ingredient.class, Ingredient);
+        orm.register(Product.class, Product);
+        orm.register(CafeTable.class, CafeTable);
+        orm.register(Customer.class, Customer);
+        orm.register(CustomerOrder.class, CustomerOrder);
+        orm.register(OnlineOrder.class, OnlineOrder);
+        orm.register(RestockRequest.class, RestockRequest);
+        orm.register(ProductIngredient.class, ProductIngredient);
+        orm.register(OrderItem.class, OrderItem);
+    }
+
+    public static void createTables(ORM orm) {
+        Database.registerTables(orm);
+        String tables = orm.createSchema();
+        try {
+            orm.getConnection().createStatement().executeUpdate(tables);
+        } catch (SQLException e) {
+            throw new RuntimeException("ERROR while emitting DDL in createTables. \n DDL: " + tables, e);
+        }
     }
 
     public static List<Product> selectAllProducts(ORM orm) {

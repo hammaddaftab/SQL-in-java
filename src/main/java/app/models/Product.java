@@ -1,15 +1,15 @@
+// models/Product.java
 package app.models;
 
 public class Product {
-    public int id;
+    public Integer productID;
     public String name;
-    public String subgroup;
-    public double price;
+    public Double price;
+    public String category;
 
-    public Product(int id, String name, String subgroup, double price) {
-        this.id = id;
-        this.name = name;
-        this.subgroup = subgroup;
-        this.price = price;
+    public Product() {}
+
+    public Product(Integer productID) {
+        this.productID = productID;
     }
 }

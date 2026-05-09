@@ -2,15 +2,16 @@
 package app.models;
 
 public class OrderItem {
-    public int productId;
-    public String name;
-    public int quantity;
-    public int isReady;
+    public Integer orderItemID;
+    public Integer orderID;
+    public Integer productID;
+    public Integer quantity;
+    public Integer preparedCount;
+    public Double priceAtOrder;
 
-    public OrderItem(int productId, String name, int quantity, int isReady) {
-        this.productId = productId;
-        this.name = name;
-        this.quantity = quantity;
-        this.isReady = isReady;
+    public OrderItem() {}
+
+    public OrderItem(Integer orderItemID) {
+        this.orderItemID = orderItemID;
     }
 }

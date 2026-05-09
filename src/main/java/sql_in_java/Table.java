@@ -36,11 +36,37 @@ public class Table {
         return this;
     }
 
+    public Table asString() {
+        columnsList.put(activeColumnForChaining, new Column(
+            activeColumnForChaining,
+            ParameterizedColumnType.VARCHAR,
+            new SizeParameter(50)
+        ));
+        return this;
+    }
+
+    public Table asBoolean() {
+        columnsList.put(activeColumnForChaining, new Column(
+            activeColumnForChaining,
+            NonParameterizedColumnType.BOOLEAN
+        ));
+        return this;
+    }
+
     public Table asDecimal(int precision, int scale) {
         columnsList.put(activeColumnForChaining, new Column(
             activeColumnForChaining,
             ParameterizedColumnType.DECIMAL,
             new PrecisionScaleParameter(precision, scale)
+        ));
+        return this;
+    }
+
+        public Table asDecimal() {
+        columnsList.put(activeColumnForChaining, new Column(
+            activeColumnForChaining,
+            ParameterizedColumnType.DECIMAL,
+            new PrecisionScaleParameter(10, 0)
         ));
         return this;
     }
@@ -55,6 +81,9 @@ public class Table {
 
     public Table refers(ColumnReference target) {
         foreignKeys.put(target.column.name, target);
+        if (this.columnsList.get(target.column.name) == null) {
+            return this;
+        }
         if (target.column.columnType instanceof NonParameterizedColumnType) {
             NonParameterizedColumnType columnType = (NonParameterizedColumnType) target.column.columnType;
             this.columnsList.put(
@@ -90,6 +119,9 @@ public class Table {
     // delegate is to ColumnReference Object for the active column for inline constaint declaration
     public Table is(Constraint constraint) {
         return this.c(activeColumnForChaining).is(constraint);
+    }
+    public Table is(Constraints constraints) {
+        return this.c(activeColumnForChaining).is(constraints);
     }
 
     public String toSQL() {

@@ -16,6 +16,7 @@ public interface DatabaseQueries {
 
     // ---- Customers ----
     Customer getCustomerById(int id);
+    int addCustomer(Customer c);
 
     // ---- Orders ----
     int addOrder(CustomerOrder o);
@@ -37,6 +38,7 @@ public interface DatabaseQueries {
     // ---- Ingredients ----
     List<Ingredient> getAllIngredients();
     List<Ingredient> getLowStockIngredients();
+    void addIngredient(String name, String type, int stock, int threshold, int supplierID);
 
     // ---- Restock Requests ----
     int addRestockRequest(RestockRequest r);
@@ -46,9 +48,11 @@ public interface DatabaseQueries {
     // ---- Suppliers ----
     List<Supplier> getAllSuppliers();
     Supplier getSupplierById(int id);
+    void addSupplier(Supplier s);
 
     // ---- Cafe Tables ----
     List<CafeTable> getAllTables();
+    void addCafeTable(int capacity, String location);
 
     // ---- Stats ----
     int countOrdersToday();

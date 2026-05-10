@@ -92,6 +92,16 @@ public class StudDB implements DatabaseQueries {
         }
     }
 
+    @Override
+    public int addCustomer(Customer c) {
+        try {
+            orm.permanent(c);
+            return c.customerID;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add customer", e);
+        }
+    }
+
     // ========================================================================
     // ORDERS
     // ========================================================================
@@ -243,6 +253,21 @@ public class StudDB implements DatabaseQueries {
     }
 
     @Override
+    public void addIngredient(String name, String type, int stock, int threshold, int supplierID) {
+        try {
+            Ingredient ing = new Ingredient();
+            ing.name = name;
+            ing.type = type;
+            ing.stock = stock;
+            ing.restockThreshold = threshold;
+            ing.supplierID = supplierID;
+            orm.permanent(ing);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add ingredient: " + name, e);
+        }
+    }
+
+    @Override
     public List<Ingredient> getLowStockIngredients() {
         try {
             // Fetch all and filter in memory (no HAVING support yet)
@@ -338,6 +363,15 @@ public class StudDB implements DatabaseQueries {
         }
     }
 
+    @Override
+    public void addSupplier(Supplier s) {
+        try {
+            orm.permanent(s);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add supplier: " + s.name, e);
+        }
+    }
+
     // ========================================================================
     // CAFE TABLES
     // ========================================================================
@@ -345,6 +379,18 @@ public class StudDB implements DatabaseQueries {
     @Override
     public List<CafeTable> getAllTables() {
         return orm.from(CafeTable.class).fetch();
+    }
+
+    @Override
+    public void addCafeTable(int capacity, String location) {
+        try {
+            CafeTable t = new CafeTable();
+            t.capacity = capacity;
+            t.location = location;
+            orm.permanent(t);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add cafe table", e);
+        }
     }
 
     // ========================================================================

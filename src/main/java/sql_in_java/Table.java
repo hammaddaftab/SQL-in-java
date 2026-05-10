@@ -126,7 +126,7 @@ public class Table {
 
     public String toSQL() {
         StringBuilder sb = new StringBuilder();
-        sb.append("CREATE TABLE ").append(tableName).append(" (").append(nextLine);
+        sb.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (").append(nextLine);
 
         // columns — all but track if FK lines follow for trailing comma
         List<Column> cols = new ArrayList<>(columnsList.values());

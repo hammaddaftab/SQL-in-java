@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cafe Management System</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; color: #333; }
+        header { background: #4a2c2a; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+        header h1 { font-size: 1.4rem; }
+        nav button { background: #6d3f3a; color: white; border: none; padding: 8px 14px; margin-left: 8px; border-radius: 4px; cursor: pointer; }
+        nav button:hover { background: #8a5250; }
+        main { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+        h2 { font-size: 1.2rem; margin-bottom: 16px; color: #4a2c2a; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .product-card { border: 1px solid #ddd; border-radius: 6px; padding: 14px; }
+        .product-card h3 { font-size: 1rem; margin-bottom: 4px; }
+        .product-card .price { color: #4a9; font-weight: bold; }
+        .product-card .cat { color: #888; font-size: 0.85rem; }
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; margin-bottom: 10px; }
+        button.primary { background: #4a2c2a; color: white; border: none; padding: 10px 18px; border-radius: 4px; cursor: pointer; }
+        button.primary:hover { background: #6d3f3a; }
+        button.small { background: #4a2c2a; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+        .msg { padding: 10px; border-radius: 4px; margin-bottom: 12px; display: none; }
+        .msg.ok { background: #d4edda; color: #155724; }
+        .msg.err { background: #f8d7da; color: #721c24; }
+        .hidden { display: none; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+        th { background: #f9f0ee; color: #4a2c2a; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+        .stat { background: #f9f0ee; border-radius: 6px; padding: 14px; text-align: center; }
+        .stat .value { font-size: 1.8rem; font-weight: bold; color: #4a2c2a; }
+        .stat .label { font-size: 0.85rem; color: #888; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .tab { background: #eee; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; }
+        .tab.active { background: #4a2c2a; color: white; }
+        #login-screen { max-width: 400px; margin: 60px auto; }
+        #login-screen h2 { text-align: center; margin-bottom: 20px; }
+        .form-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .form-row input { flex: 1; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Cafe Management System</h1>
+    <nav>
+        <span id="user-label" style="margin-right:10px;opacity:0.8"></span>
+        <button onclick="showSection('products')">Menu</button>
+        <button id="btn-orders" onclick="showSection('orders')" class="hidden">My Orders</button>
+        <button id="btn-admin" onclick="showSection('admin')" class="hidden">Admin</button>
+        <button id="btn-logout" onclick="logout()" class="hidden">Logout</button>
+    </nav>
+</header>
+
+<main>
+    <!-- Login -->
+    <div id="login-screen" class="card">
+        <h2>Login</h2>
+        <div id="login-msg" class="msg"></div>
+        <div class="tabs">
+            <button class="tab active" onclick="switchLoginTab('customer')">Customer</button>
+            <button class="tab" onclick="switchLoginTab('admin')">Admin</button>
+        </div>
+        <div id="tab-customer">
+            <label>Customer ID</label>
+            <input type="number" id="login-cid" placeholder="Enter your customer ID" />
+            <button class="primary" onclick="loginCustomer()">Login as Customer</button>
+        </div>
+        <div id="tab-admin" class="hidden">
+            <label>Admin Password</label>
+            <input type="password" id="login-pass" placeholder="Enter admin password" />
+            <button class="primary" onclick="loginAdmin()">Login as Admin</button>
+        </div>
+    </div>
+
+    <!-- Products / Menu -->
+    <div id="section-products" class="hidden">
+        <div class="card">
+            <h2>Menu</h2>
+            <div id="products-msg" class="msg"></div>
+            <div id="products-grid" class="grid"></div>
+        </div>
+        <div id="order-form-card" class="card hidden">
+            <h2>Place Order</h2>
+            <div id="order-msg" class="msg"></div>
+            <div id="order-items-list"></div>
+            <label>Payment Method</label>
+            <select id="payment-method">
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="online">Online</option>
+            </select>
+            <label>Table (optional)</label>
+            <select id="table-select"><option value="">No table (takeaway)</option></select>
+            <button class="primary" onclick="placeOrder()">Place Order</button>
+        </div>
+    </div>
+
+    <!-- My Orders -->
+    <div id="section-orders" class="hidden">
+        <div class="card">
+            <h2>My Orders</h2>
+            <div id="orders-msg" class="msg"></div>
+            <table id="orders-table">
+                <thead><tr><th>Order ID</th><th>Time</th><th>Payment</th><th>Status</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Admin -->
+    <div id="section-admin" class="hidden">
+        <div class="tabs">
+            <button class="tab active" onclick="switchAdminTab('dashboard')">Dashboard</button>
+            <button class="tab" onclick="switchAdminTab('admin-orders')">Orders</button>
+            <button class="tab" onclick="switchAdminTab('admin-products')">Products</button>
+            <button class="tab" onclick="switchAdminTab('inventory')">Inventory</button>
+            <button class="tab" onclick="switchAdminTab('sales')">Sales</button>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="admin-tab-dashboard" class="card">
+            <h2>Dashboard</h2>
+            <div id="dashboard-stats" class="stat-grid"></div>
+        </div>
+
+        <!-- Admin Orders -->
+        <div id="admin-tab-admin-orders" class="card hidden">
+            <h2>All Orders</h2>
+            <select onchange="loadAdminOrders(this.value)" style="width:auto;margin-bottom:12px">
+                <option value="">All</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+            </select>
+            <table id="admin-orders-table">
+                <thead><tr><th>ID</th><th>Customer</th><th>Table</th><th>Payment</th><th>Online?</th><th>Action</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Admin Products -->
+        <div id="admin-tab-admin-products" class="card hidden">
+            <h2>Manage Products</h2>
+            <div id="admin-products-msg" class="msg"></div>
+            <form onsubmit="addProduct(event)" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+                <input type="text" id="p-name" placeholder="Name" required style="flex:2;min-width:120px;margin:0">
+                <input type="number" id="p-price" placeholder="Price" step="0.01" required style="flex:1;min-width:80px;margin:0">
+                <input type="text" id="p-cat" placeholder="Category" required style="flex:1;min-width:100px;margin:0">
+                <button class="primary" type="submit">Add</button>
+            </form>
+            <table id="admin-products-table">
+                <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Category</th><th>Action</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Inventory -->
+        <div id="admin-tab-inventory" class="card hidden">
+            <h2>Inventory</h2>
+            <table id="inventory-table">
+                <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Stock</th><th>Threshold</th><th>Supplier</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Sales -->
+        <div id="admin-tab-sales" class="card hidden">
+            <h2>Sales Report</h2>
+            <div id="sales-stats" class="stat-grid"></div>
+            <h2 style="margin-top:16px">Top Products</h2>
+            <table id="sales-table">
+                <thead><tr><th>Product</th><th>Price</th><th>Qty Sold</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<script>
+let role = null;
+let cart = {}; // productID -> {qty, name, price}
+let allProducts = [];
+let allTables = [];
+
+function msg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'msg ' + type;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 4000);
+}
+
+function switchLoginTab(tab) {
+    document.getElementById('tab-customer').classList.toggle('hidden', tab !== 'customer');
+    document.getElementById('tab-admin').classList.toggle('hidden', tab !== 'admin');
+    document.querySelectorAll('#login-screen .tab').forEach((b, i) => {
+        b.classList.toggle('active', (i === 0 && tab === 'customer') || (i === 1 && tab === 'admin'));
+    });
+}
+
+async function loginCustomer() {
+    const cid = document.getElementById('login-cid').value;
+    const fd = new FormData();
+    fd.append('type', 'customer');
+    fd.append('customerID', cid);
+    const r = await fetch('/login', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (r.ok) {
+        role = 'customer';
+        document.getElementById('user-label').textContent = 'Customer #' + d.customerID;
+        afterLogin();
+    } else {
+        msg('login-msg', d.error || 'Login failed', 'err');
+    }
+}
+
+async function loginAdmin() {
+    const pass = document.getElementById('login-pass').value;
+    const fd = new FormData();
+    fd.append('type', 'admin');
+    fd.append('password', pass);
+    const r = await fetch('/login', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (r.ok) {
+        role = 'admin';
+        document.getElementById('user-label').textContent = 'Admin';
+        afterLogin();
+    } else {
+        msg('login-msg', d.error || 'Login failed', 'err');
+    }
+}
+
+function afterLogin() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('btn-logout').classList.remove('hidden');
+    if (role === 'customer') {
+        document.getElementById('btn-orders').classList.remove('hidden');
+        loadMenu();
+        showSection('products');
+    } else {
+        document.getElementById('btn-admin').classList.remove('hidden');
+        loadDashboard();
+        showSection('admin');
+    }
+}
+
+async function logout() {
+    await fetch('/logout', { method: 'POST' });
+    role = null;
+    cart = {};
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('btn-logout').classList.add('hidden');
+    document.getElementById('btn-orders').classList.add('hidden');
+    document.getElementById('btn-admin').classList.add('hidden');
+    document.getElementById('user-label').textContent = '';
+    ['products','orders','admin'].forEach(s => document.getElementById('section-' + s).classList.add('hidden'));
+}
+
+function showSection(name) {
+    ['products','orders','admin'].forEach(s => document.getElementById('section-' + s).classList.toggle('hidden', s !== name));
+    if (name === 'orders') loadMyOrders();
+    if (name === 'admin') { loadDashboard(); switchAdminTab('dashboard'); }
+    if (name === 'products' && role === 'customer') loadMenu();
+}
+
+async function loadMenu() {
+    const r = await fetch('/customer/menu');
+    if (!r.ok) return;
+    const d = await r.json();
+    allProducts = d.products || [];
+    allTables = d.tables || [];
+
+    const sel = document.getElementById('table-select');
+    sel.innerHTML = '<option value="">No table (takeaway)</option>';
+    (allTables).forEach(t => {
+        const o = document.createElement('option');
+        o.value = t.tableID;
+        o.textContent = 'Table ' + t.tableID + ' (' + t.location + ', cap ' + t.capacity + ')';
+        sel.appendChild(o);
+    });
+
+    renderProducts(allProducts);
+}
+
+function renderProducts(products) {
+    const grid = document.getElementById('products-grid');
+    grid.innerHTML = '';
+    products.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'product-card';
+        const qty = cart[p.productID] ? cart[p.productID].qty : 0;
+        div.innerHTML = `<h3>${p.name}</h3><div class="cat">${p.category}</div><div class="price">$${p.price.toFixed(2)}</div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:6px">
+                <button class="small" onclick="updateCart(${p.productID},-1,'${p.name}',${p.price})">-</button>
+                <span id="qty-${p.productID}">${qty}</span>
+                <button class="small" onclick="updateCart(${p.productID},1,'${p.name}',${p.price})">+</button>
+            </div>`;
+        grid.appendChild(div);
+    });
+}
+
+function updateCart(pid, delta, name, price) {
+    if (!cart[pid]) cart[pid] = { qty: 0, name, price };
+    cart[pid].qty = Math.max(0, cart[pid].qty + delta);
+    if (cart[pid].qty === 0) delete cart[pid];
+    const span = document.getElementById('qty-' + pid);
+    if (span) span.textContent = cart[pid] ? cart[pid].qty : 0;
+    renderOrderForm();
+}
+
+function renderOrderForm() {
+    const keys = Object.keys(cart);
+    const card = document.getElementById('order-form-card');
+    if (keys.length === 0) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    const list = document.getElementById('order-items-list');
+    list.innerHTML = '<table><thead><tr><th>Item</th><th>Qty</th><th>Subtotal</th></tr></thead><tbody>' +
+        keys.map(pid => `<tr><td>${cart[pid].name}</td><td>${cart[pid].qty}</td><td>$${(cart[pid].price * cart[pid].qty).toFixed(2)}</td></tr>`).join('') +
+        '</tbody></table><br>';
+}
+
+async function placeOrder() {
+    const keys = Object.keys(cart);
+    if (keys.length === 0) return msg('order-msg', 'Cart is empty', 'err');
+    const fd = new FormData();
+    fd.append('paymentMethod', document.getElementById('payment-method').value);
+    fd.append('tableID', document.getElementById('table-select').value);
+    keys.forEach(pid => {
+        fd.append('productID', pid);
+        fd.append('quantity', cart[pid].qty);
+    });
+    const r = await fetch('/customer/order', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (r.ok) {
+        msg('order-msg', 'Order placed! ID: ' + d.orderID + ' Total: $' + d.total.toFixed(2), 'ok');
+        cart = {};
+        renderProducts(allProducts);
+        renderOrderForm();
+    } else {
+        msg('order-msg', d.error || 'Failed to place order', 'err');
+    }
+}
+
+async function loadMyOrders() {
+    const r = await fetch('/customer/orders');
+    if (!r.ok) return;
+    const d = await r.json();
+    const tbody = document.querySelector('#orders-table tbody');
+    tbody.innerHTML = '';
+    (d.orders || []).forEach(o => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${o.orderID}</td><td>${o.time ? new Date(o.time * 1000).toLocaleString() : '-'}</td><td>${o.paymentMethod}</td><td>${o.status || 'pending'}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+function switchAdminTab(tab) {
+    ['dashboard','admin-orders','admin-products','inventory','sales'].forEach(t => {
+        document.getElementById('admin-tab-' + t).classList.toggle('hidden', t !== tab);
+    });
+    document.querySelectorAll('#section-admin .tabs .tab').forEach((b, i) => {
+        const tabs = ['dashboard','admin-orders','admin-products','inventory','sales'];
+        b.classList.toggle('active', tabs[i] === tab);
+    });
+    if (tab === 'admin-orders') loadAdminOrders('');
+    if (tab === 'admin-products') loadAdminProducts();
+    if (tab === 'inventory') loadInventory();
+    if (tab === 'sales') loadSales();
+}
+
+async function loadDashboard() {
+    const r = await fetch('/admin');
+    if (!r.ok) return;
+    const d = await r.json();
+    const el = document.getElementById('dashboard-stats');
+    el.innerHTML = `
+        <div class="stat"><div class="value">${d.ordersToday}</div><div class="label">Orders Today</div></div>
+        <div class="stat"><div class="value">${d.pendingOrders}</div><div class="label">Pending Orders</div></div>
+        <div class="stat"><div class="value">$${(d.salesToday||0).toFixed(2)}</div><div class="label">Sales Today</div></div>
+        <div class="stat"><div class="value">${d.lowStockItems}</div><div class="label">Low Stock Items</div></div>
+        <div class="stat"><div class="value">${d.pendingRestocks}</div><div class="label">Pending Restocks</div></div>`;
+}
+
+async function loadAdminOrders(status) {
+    const r = await fetch('/admin/orders' + (status ? '?status=' + status : ''));
+    if (!r.ok) return;
+    const d = await r.json();
+    const tbody = document.querySelector('#admin-orders-table tbody');
+    tbody.innerHTML = '';
+    (d.orders || []).forEach(o => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${o.orderID}</td><td>${o.customerName}</td><td>${o.tableID || '-'}</td><td>${o.paymentMethod}</td><td>${o.isOnline ? 'Yes' : 'No'}</td>
+            <td>
+                <button class="small" onclick="updateOrderStatus(${o.orderID},'completed')">Complete</button>
+                ${o.isOnline ? `<button class="small" onclick="confirmOnline(${o.orderID})">Confirm Online</button>` : ''}
+            </td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+async function updateOrderStatus(id, status) {
+    const fd = new FormData();
+    fd.append('status', status);
+    await fetch('/admin/orders/' + id + '/status', { method: 'POST', body: fd });
+    loadAdminOrders('');
+}
+
+async function confirmOnline(id) {
+    await fetch('/admin/orders/' + id + '/confirm', { method: 'POST' });
+    loadAdminOrders('');
+}
+
+async function loadAdminProducts() {
+    const r = await fetch('/admin/products');
+    if (!r.ok) return;
+    const d = await r.json();
+    const tbody = document.querySelector('#admin-products-table tbody');
+    tbody.innerHTML = '';
+    (d.products || []).forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${p.productID}</td><td>${p.name}</td><td>$${p.price.toFixed(2)}</td><td>${p.category}</td>
+            <td><button class="small" onclick="deleteProduct(${p.productID})">Delete</button></td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+async function addProduct(e) {
+    e.preventDefault();
+    const fd = new FormData();
+    fd.append('name', document.getElementById('p-name').value);
+    fd.append('price', document.getElementById('p-price').value);
+    fd.append('category', document.getElementById('p-cat').value);
+    const r = await fetch('/admin/products', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (r.ok) {
+        msg('admin-products-msg', 'Product added (ID: ' + d.productID + ')', 'ok');
+        document.getElementById('p-name').value = '';
+        document.getElementById('p-price').value = '';
+        document.getElementById('p-cat').value = '';
+        loadAdminProducts();
+    } else {
+        msg('admin-products-msg', d.error || 'Failed', 'err');
+    }
+}
+
+async function deleteProduct(id) {
+    if (!confirm('Delete product #' + id + '?')) return;
+    await fetch('/admin/products/' + id + '/delete', { method: 'POST' });
+    loadAdminProducts();
+}
+
+async function loadInventory() {
+    const r = await fetch('/admin/inventory');
+    if (!r.ok) return;
+    const d = await r.json();
+    const tbody = document.querySelector('#inventory-table tbody');
+    tbody.innerHTML = '';
+    (d.ingredients || []).forEach(i => {
+        const tr = document.createElement('tr');
+        const low = i.stock < i.restockThreshold;
+        tr.innerHTML = `<td>${i.ingredientID}</td><td>${i.name}</td><td>${i.type}</td>
+            <td style="color:${low ? 'red' : 'inherit'}">${i.stock}${low ? ' ⚠' : ''}</td>
+            <td>${i.restockThreshold}</td><td>${i.supplierID}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+async function loadSales() {
+    const r = await fetch('/admin/sales');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('sales-stats').innerHTML = `
+        <div class="stat"><div class="value">${d.ordersToday}</div><div class="label">Orders Today</div></div>
+        <div class="stat"><div class="value">$${(d.salesToday||0).toFixed(2)}</div><div class="label">Sales Today</div></div>
+        <div class="stat"><div class="value">${d.pendingOrders}</div><div class="label">Pending</div></div>
+        <div class="stat"><div class="value">${d.completedOrders}</div><div class="label">Completed</div></div>`;
+    const tbody = document.querySelector('#sales-table tbody');
+    tbody.innerHTML = '';
+    (d.topProducts || []).forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${p.productName}</td><td>$${p.price.toFixed(2)}</td><td>${p.totalQuantitySold}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+// Show public products on load
+(async () => {
+    const r = await fetch('/products');
+    if (r.ok) {
+        const d = await r.json();
+        allProducts = d.products || [];
+        renderProducts(allProducts);
+    }
+})();
+</script>
+</body>
+</html>

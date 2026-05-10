@@ -104,11 +104,19 @@ public class Database {
     // does the work of both, registers and creates
     public static void createTables(ORM orm) {
         Database.registerTables(orm);
-        String tables = orm.createSchema();
+        String schema = orm.createSchema();
+        // Split on statement boundaries and execute each CREATE TABLE individually
+        String[] statements = schema.split("(?<=;)\\s*");
         try {
-            orm.getConnection().createStatement().executeUpdate(tables);
+            java.sql.Statement stmt = orm.getConnection().createStatement();
+            for (String sql : statements) {
+                String trimmed = sql.trim();
+                if (!trimmed.isEmpty()) {
+                    stmt.executeUpdate(trimmed);
+                }
+            }
         } catch (SQLException e) {
-            throw new RuntimeException("ERROR while emitting DDL in createTables. \n DDL: " + tables, e);
+            throw new RuntimeException("ERROR while emitting DDL in createTables. \n DDL: " + schema, e);
         }
     }
 

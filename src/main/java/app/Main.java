@@ -44,21 +44,14 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        String url = "jdbc:mysql://localhost:3306/";
-        String user = "root";
-        String password = System.getenv("DB_PASSWORD");
-        if (password == null || password.isEmpty()) {
-            throw new Exception("Password empty.");
-        }
-
         ORM orm = new ORM();
-        orm.connect(url, user, password);
+        orm.connect("jdbc:sqlite:cafe.db", null, null);
         Database.createTables(orm);
         dao = new StudDB(orm);
 
         Javalin app = Javalin.create(config -> {
             config.staticFiles.add("/public");
-        }).start(8080);
+        }).start(5000);
 
         // =====================================================================
         // PUBLIC ENDPOINTS

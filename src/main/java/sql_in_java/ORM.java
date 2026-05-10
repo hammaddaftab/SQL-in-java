@@ -66,7 +66,17 @@ public class ORM {
 
     public ORM connect(String url, String user, String password) {
         try {
-            this.connection = DriverManager.getConnection(url, user, password);
+            // Explicitly load SQLite driver if connecting to SQLite
+            if (url.startsWith("jdbc:sqlite:")) {
+                Class.forName("org.sqlite.JDBC");
+            }
+            if (user == null || user.isEmpty()) {
+                this.connection = DriverManager.getConnection(url);
+            } else {
+                this.connection = DriverManager.getConnection(url, user, password);
+            }
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("SQLite JDBC driver not found on classpath", e);
         } catch (SQLException e) {
             throw new RuntimeException(
                 "Failed to connect to database at " + url + ": " + e.getMessage(), e
@@ -401,6 +411,36 @@ public class ORM {
 
         try (java.sql.Statement stmt = connection.createStatement()) {
             stmt.executeUpdate(sql.substring(0, sql.length() - 1)); // Remove semicolon
+        }
+
+        // Retrieve auto-generated PK and write it back to the instance
+        boolean hasAutoIncrement = false;
+        for (Constraint c : table.primaryKey.column.constraints) {
+            if (c == Constraint.AUTOINCREMENT) {
+                hasAutoIncrement = true;
+                break;
+            }
+        }
+        if (hasAutoIncrement) {
+            try (java.sql.Statement stmt = connection.createStatement();
+                 java.sql.ResultSet rs = stmt.executeQuery("SELECT last_insert_rowid()")) {
+                if (rs.next()) {
+                    long generatedKey = rs.getLong(1);
+                    Field pkField;
+                    try {
+                        pkField = instance.getClass().getDeclaredField(table.primaryKey.column.name);
+                    } catch (NoSuchFieldException e) {
+                        throw new RuntimeException("PK field not found: " + table.primaryKey.column.name, e);
+                    }
+                    pkField.setAccessible(true);
+                    Class<?> pkType = pkField.getType();
+                    if (pkType == Integer.class || pkType == int.class) {
+                        pkField.set(instance, (int) generatedKey);
+                    } else if (pkType == Long.class || pkType == long.class) {
+                        pkField.set(instance, generatedKey);
+                    }
+                }
+            }
         }
     }
 

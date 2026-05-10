@@ -1,42 +1,51 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { api } from '../api'
 
 export default function AdminLoginPage() {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
+  const [password, setPassword] = useState('')
+  const [error, setError]       = useState('')
+  const [busy, setBusy]         = useState(false)
+  const navigate = useNavigate()
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
+    setError('')
+    setBusy(true)
     try {
-      await api.adminLogin(password);
-      navigate('/admin');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+      await api.adminLogin(password)
+      navigate('/admin')
+    } catch {
+      setError('Incorrect password.')
+    } finally {
+      setBusy(false)
     }
-  };
+  }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--coffee-900)' }}>
-      <div className="card" style={{ width: 360, textAlign: 'center' }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, color: 'var(--amber-600)', marginBottom: 32, fontWeight: 600 }}>
-          Grind Admin
+      <div className="card" style={{ width: 360 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 26, color: 'var(--amber-500)', fontWeight: 600, marginBottom: 4 }}>
+            Grind Admin
+          </div>
+          <p className="text-sm text-muted">Staff access only</p>
         </div>
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <input 
-            type="password" 
-            className="input-field" 
-            placeholder="Admin Password" 
-            value={password} 
-            onChange={e => setPassword(e.target.value)} 
-            required 
-            autoFocus
-          />
-          {error && <div style={{ color: 'var(--danger)', fontSize: 14 }}>{error}</div>}
-          <button className="btn-primary" type="submit" style={{ width: '100%' }}>Login</button>
+        <form onSubmit={handleLogin} className="stack stack-sm">
+          <div>
+            <label className="field-label">Password</label>
+            <input
+              type="password" className="field"
+              value={password} onChange={e => setPassword(e.target.value)}
+              required autoFocus
+            />
+          </div>
+          {error && <p className="inline-error">{error}</p>}
+          <button className="btn btn-primary btn-full" type="submit" disabled={busy} style={{ marginTop: 4 }}>
+            {busy ? 'Signing in…' : 'Sign in'}
+          </button>
         </form>
       </div>
     </div>
-  );
+  )
 }

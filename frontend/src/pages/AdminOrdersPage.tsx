@@ -1,105 +1,112 @@
-import { useState, useEffect } from 'react';
-import { api } from '../api';
-import type { AdminOrder } from '../api';
-import AdminLayout from '../components/AdminLayout';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react'
+import { api } from '../api'
+import type { AdminOrder } from '../api'
+import AdminLayout from '../components/AdminLayout'
+import { useNavigate } from 'react-router-dom'
+
+const STATUS_BADGE: Record<string, string> = {
+  pending: 'badge-pending', confirmed: 'badge-confirmed', completed: 'badge-completed',
+}
+
+const FILTERS = ['', 'pending', 'confirmed', 'completed'] as const
 
 export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [filter, setFilter] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const [orders, setOrders]   = useState<AdminOrder[]>([])
+  const [filter, setFilter]   = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [actionErr, setActionErr] = useState<Record<number, string>>({})
+  const navigate = useNavigate()
 
-  const loadOrders = () => {
-    setLoading(true);
-    api.adminGetOrders(filter === '' ? undefined : filter)
-      .then(res => setOrders(res.orders))
-      .catch(err => {
-        if (err.message.includes('401')) navigate('/admin/login');
-      })
-      .finally(() => setLoading(false));
-  };
+  const loadOrders = useCallback(() => {
+    setLoading(true)
+    api.adminGetOrders(filter || undefined)
+      .then(r => setOrders(r.orders))
+      .catch(err => { if (err.message?.includes('401')) navigate('/admin/login') })
+      .finally(() => setLoading(false))
+  }, [filter, navigate])
 
-  useEffect(() => {
-    loadOrders();
-  }, [filter, navigate]);
+  useEffect(() => { loadOrders() }, [loadOrders])
 
-  const handleUpdateStatus = async (id: number, status: string) => {
-    try {
-      await api.adminUpdateOrderStatus(id, status);
-      loadOrders();
-    } catch (err) {
-      alert('Failed to update status');
-    }
-  };
-
-  const handleConfirm = async (id: number) => {
-    try {
-      await api.adminConfirmOrder(id);
-      loadOrders();
-    } catch (err) {
-      alert('Failed to confirm order');
-    }
-  };
+  const act = async (id: number, fn: () => Promise<unknown>) => {
+    setActionErr(prev => ({ ...prev, [id]: '' }))
+    try { await fn(); loadOrders() }
+    catch { setActionErr(prev => ({ ...prev, [id]: 'Action failed' })) }
+  }
 
   return (
     <AdminLayout>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      <div className="admin-page-header">
         <h1>Orders</h1>
-        <select className="input-field" style={{ width: 200 }} value={filter} onChange={e => setFilter(e.target.value)}>
-          <option value="">All Statuses</option>
-          <option value="pending">Pending</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="completed">Completed</option>
-        </select>
+        <div className="cluster cluster-sm">
+          {FILTERS.map(f => (
+            <button
+              key={f} onClick={() => setFilter(f)}
+              className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-ghost'}`}
+            >
+              {f === '' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="card card-flush">
         <table className="table">
-          <thead style={{ background: 'var(--cream-200)' }}>
+          <thead>
             <tr>
-              <th>Order ID</th>
+              <th>#</th>
               <th>Time</th>
               <th>Customer</th>
-              <th>Type/Table</th>
+              <th>Type</th>
               <th>Payment</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} style={{ textAlign: 'center' }}><div className="loader"></div></td></tr>
+              <tr><td colSpan={7}><div className="loader-wrap"><div className="loader" /></div></td></tr>
             ) : orders.length === 0 ? (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No orders found</td></tr>
-            ) : (
-              orders.map(o => (
+              <tr><td colSpan={7}><div className="empty-state">No orders found.</div></td></tr>
+            ) : orders.map(o => {
+              const t = new Date(o.time * 1000)
+              return (
                 <tr key={o.orderID}>
-                  <td style={{ fontWeight: 600 }}>#{o.orderID}</td>
-                  <td style={{ fontSize: 14 }}>{new Date(o.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                  <td>{o.customerName}</td>
-                  <td>{o.isOnline ? 'Online' : (o.tableID ? `Table ${o.tableID}` : 'Takeaway')}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{o.paymentMethod}</td>
-                  <td><span className={`badge ${o.status}`}>{o.status}</span></td>
+                  <td className="fw-600 text-sm">#{o.orderID}</td>
+                  <td className="text-sm text-muted">
+                    {t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    <br />
+                    <span style={{ fontSize: 11 }}>{t.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                  </td>
+                  <td className="fw-500">{o.customerName}</td>
+                  <td className="text-sm">
+                    {o.isOnline ? <span className="badge badge-confirmed">Online</span>
+                      : o.tableID ? `Table ${o.tableID}` : 'Takeaway'}
+                  </td>
+                  <td className="text-sm" style={{ textTransform: 'capitalize' }}>{o.paymentMethod}</td>
+                  <td><span className={`badge ${STATUS_BADGE[o.status] ?? 'badge-neutral'}`}>{o.status}</span></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="cluster cluster-sm">
+                      {actionErr[o.orderID] && (
+                        <span className="text-sm" style={{ color: 'var(--danger)' }}>{actionErr[o.orderID]}</span>
+                      )}
                       {o.status === 'pending' && o.isOnline && (
-                        <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: 13 }} onClick={() => handleConfirm(o.orderID)}>Confirm</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => act(o.orderID, () => api.adminConfirmOrder(o.orderID))}>
+                          Confirm
+                        </button>
                       )}
-                      {o.status === 'pending' && !o.isOnline && (
-                        <button className="btn-primary" style={{ padding: '6px 12px', fontSize: 13 }} onClick={() => handleUpdateStatus(o.orderID, 'completed')}>Complete</button>
-                      )}
-                      {o.status === 'confirmed' && (
-                        <button className="btn-primary" style={{ padding: '6px 12px', fontSize: 13 }} onClick={() => handleUpdateStatus(o.orderID, 'completed')}>Complete</button>
-                      )}
+                      {(o.status === 'pending' && !o.isOnline) || o.status === 'confirmed' ? (
+                        <button className="btn btn-primary btn-sm" onClick={() => act(o.orderID, () => api.adminUpdateOrderStatus(o.orderID, 'completed'))}>
+                          Complete
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
+              )
+            })}
           </tbody>
         </table>
       </div>
     </AdminLayout>
-  );
+  )
 }

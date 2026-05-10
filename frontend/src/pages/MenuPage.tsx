@@ -1,218 +1,266 @@
-import { useState, useEffect } from 'react';
-import { api } from '../api';
-import type { Product, CafeTable } from '../api';
-import CustomerLayout from '../components/CustomerLayout';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react'
+import { api } from '../api'
+import type { Product, CafeTable } from '../api'
+import CustomerLayout from '../components/CustomerLayout'
+import { useNavigate } from 'react-router-dom'
+
+type CartItem = { product: Product; quantity: number }
+
+function getStoredCart(): CartItem[] {
+  try { return JSON.parse(localStorage.getItem('cart') || '[]') } catch { return [] }
+}
 
 export default function MenuPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [tables, setTables] = useState<CafeTable[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
-  
-  // Registration state
-  const [customerID, setCustomerID] = useState<string | null>(localStorage.getItem('customerID'));
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  
-  // Checkout state
-  const [paymentMethod, setPaymentMethod] = useState('card');
-  const [tableID, setTableID] = useState('');
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [checkoutSuccess, setCheckoutSuccess] = useState<{orderID: number, total: number} | null>(null);
+  const [products, setProducts]   = useState<Product[]>([])
+  const [tables, setTables]       = useState<CafeTable[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [cart, setCart]           = useState<CartItem[]>(getStoredCart)
+  const [activeCategory, setActiveCategory] = useState<string>('all')
 
-  const navigate = useNavigate();
+  const [customerID, setCustomerID] = useState<string | null>(localStorage.getItem('customerID'))
+  const [firstName, setFirstName]   = useState('')
+  const [lastName, setLastName]     = useState('')
+  const [regError, setRegError]     = useState('')
+  const [isRegistering, setIsRegistering] = useState(false)
+
+  const [paymentMethod, setPaymentMethod] = useState('card')
+  const [tableID, setTableID]             = useState('')
+  const [isOrdering, setIsOrdering]       = useState(false)
+  const [orderError, setOrderError]       = useState('')
+  const [orderSuccess, setOrderSuccess]   = useState<{ orderID: number; total: number } | null>(null)
+
+  const navigate = useNavigate()
 
   useEffect(() => {
-    async function load() {
-      try {
-        const [prodRes, tabRes] = await Promise.all([
-          api.getProducts(),
-          api.getTables()
-        ]);
-        setProducts(prodRes.products);
-        setTables(tabRes.tables);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+    Promise.all([api.getProducts(), api.getTables()])
+      .then(([p, t]) => { setProducts(p.products); setTables(t.tables) })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const saveCart = (next: CartItem[]) => {
+    setCart(next)
+    localStorage.setItem('cart', JSON.stringify(next))
+  }
+
+  const changeQty = (product: Product, delta: number) => {
+    const existing = cart.find(i => i.product.productID === product.productID)
+    if (!existing) {
+      if (delta > 0) saveCart([...cart, { product, quantity: 1 }])
+      return
     }
-    load();
-    
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) setCart(JSON.parse(savedCart));
-  }, []);
+    const next = existing.quantity + delta
+    if (next <= 0) saveCart(cart.filter(i => i.product.productID !== product.productID))
+    else saveCart(cart.map(i => i.product.productID === product.productID ? { ...i, quantity: next } : i))
+  }
 
-  const saveCart = (newCart: any) => {
-    setCart(newCart);
-    localStorage.setItem('cart', JSON.stringify(newCart));
-  };
-
-  const addToCart = (product: Product) => {
-    const existing = cart.find(item => item.product.productID === product.productID);
-    if (existing) {
-      saveCart(cart.map(item => item.product.productID === product.productID ? { ...item, quantity: item.quantity + 1 } : item));
-    } else {
-      saveCart([...cart, { product, quantity: 1 }]);
-    }
-  };
-
-  const removeFromCart = (productID: number) => {
-    saveCart(cart.filter(item => item.product.productID !== productID));
-  };
+  const cartQty = (pid: number) => cart.find(i => i.product.productID === pid)?.quantity ?? 0
+  const cartTotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0)
+  const cartCount = cart.reduce((s, i) => s + i.quantity, 0)
 
   const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
+    setRegError('')
+    setIsRegistering(true)
     try {
-      const customer = await api.registerCustomer(firstName, lastName);
-      localStorage.setItem('customerID', String(customer.customerID));
-      localStorage.setItem('firstName', customer.firstName);
-      localStorage.setItem('lastName', customer.lastName);
-      setCustomerID(String(customer.customerID));
-    } catch (err) {
-      console.error(err);
-      alert('Registration failed');
+      const c = await api.registerCustomer(firstName.trim(), lastName.trim())
+      localStorage.setItem('customerID', String(c.customerID))
+      localStorage.setItem('firstName', c.firstName)
+      localStorage.setItem('lastName', c.lastName)
+      setCustomerID(String(c.customerID))
+    } catch (err: any) {
+      setRegError(err.message || 'Registration failed')
+    } finally {
+      setIsRegistering(false)
     }
-  };
+  }
 
-  const handleCheckout = async () => {
-    if (!customerID) return;
+  const handleOrder = async () => {
+    if (!customerID || cart.length === 0) return
+    setOrderError('')
+    setIsOrdering(true)
     try {
-      setIsCheckingOut(true);
       const res = await api.placeOrder({
         customerID: parseInt(customerID, 10),
         tableID: tableID ? parseInt(tableID, 10) : undefined,
         paymentMethod,
-        items: cart.map(item => ({ productID: item.product.productID, quantity: item.quantity }))
-      });
-      setCheckoutSuccess(res);
-      saveCart([]);
-    } catch (err) {
-      console.error(err);
-      alert('Checkout failed');
+        items: cart.map(i => ({ productID: i.product.productID, quantity: i.quantity })),
+      })
+      setOrderSuccess(res)
+      saveCart([])
+    } catch (err: any) {
+      setOrderError(err.message || 'Could not place order')
     } finally {
-      setIsCheckingOut(false);
+      setIsOrdering(false)
     }
-  };
-
-  const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-
-  if (loading) return <CustomerLayout><div style={{ textAlign: 'center' }}><div className="loader"></div></div></CustomerLayout>;
-
-  if (!customerID) {
-    return (
-      <CustomerLayout>
-        <div style={{ maxWidth: 400, margin: '60px auto' }} className="card">
-          <h2>Welcome to The Daily Grind</h2>
-          <p style={{ marginBottom: 24, color: 'var(--text-muted)' }}>Please enter your name to start ordering.</p>
-          <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <input className="input-field" placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} required />
-            <input className="input-field" placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} required />
-            <button className="btn-primary" type="submit">Start Ordering</button>
-          </form>
-        </div>
-      </CustomerLayout>
-    );
   }
 
-  if (checkoutSuccess) {
-    return (
-      <CustomerLayout>
-        <div style={{ maxWidth: 500, margin: '60px auto', textAlign: 'center' }} className="card">
-          <div style={{ fontSize: 48, marginBottom: 16 }}>☕</div>
-          <h2>Order Confirmed!</h2>
-          <p style={{ marginBottom: 24, fontSize: 18 }}>Your order #{checkoutSuccess.orderID} has been placed.</p>
-          <p style={{ marginBottom: 32, fontWeight: 'bold' }}>Total: ${checkoutSuccess.total.toFixed(2)}</p>
-          <button className="btn-primary" onClick={() => navigate(`/orders/${checkoutSuccess.orderID}`)}>
-            View Order Status
-          </button>
-        </div>
-      </CustomerLayout>
-    );
-  }
-
-  // Group products by category
-  const categories = Array.from(new Set(products.map(p => p.category)));
-
-  return (
+  if (loading) return (
     <CustomerLayout>
-      <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
-          <h1 style={{ marginBottom: 32 }}>Our Menu</h1>
-          {categories.map(cat => (
-            <div key={cat} style={{ marginBottom: 40 }}>
-              <h2 style={{ borderBottom: '2px solid var(--border)', paddingBottom: 8, marginBottom: 20 }}>{cat}</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
-                {products.filter(p => p.category === cat).map(p => (
-                  <div key={p.productID} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px' }}>
-                    <div>
-                      <div style={{ fontWeight: 500, fontSize: 18, marginBottom: 4 }}>{p.name}</div>
-                      <div style={{ color: 'var(--text-muted)' }}>${p.price.toFixed(2)}</div>
-                    </div>
-                    <button className="btn-secondary" onClick={() => addToCart(p)}>Add</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="loader-wrap"><div className="loader" /></div>
+    </CustomerLayout>
+  )
 
-        <div style={{ width: 350, position: 'sticky', top: 40 }} className="card">
-          <h2 style={{ marginBottom: 24 }}>Your Order</h2>
-          {cart.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>Cart is empty</p>
-          ) : (
-            <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
-                {cart.map(item => (
-                  <div key={item.product.productID} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ fontWeight: 500 }}>{item.quantity}x</span> {item.product.name}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span>${(item.product.price * item.quantity).toFixed(2)}</span>
-                      <button style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: 20, padding: 0 }} onClick={() => removeFromCart(item.product.productID)}>&times;</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginBottom: 24, display: 'flex', justifyContent: 'space-between', fontSize: 18, fontWeight: 600 }}>
-                <span>Total</span>
-                <span>${cartTotal.toFixed(2)}</span>
-              </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: 8, fontSize: 14, fontWeight: 500 }}>Payment Method</label>
-                  <select className="input-field" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
-                    <option value="card">Credit Card</option>
-                    <option value="cash">Cash</option>
-                    <option value="online">Online Payment</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: 8, fontSize: 14, fontWeight: 500 }}>Table (Optional)</label>
-                  <select className="input-field" value={tableID} onChange={e => setTableID(e.target.value)}>
-                    <option value="">Takeaway / Counter</option>
-                    {tables.map(t => (
-                      <option key={t.tableID} value={t.tableID}>{t.location} (Capacity: {t.capacity})</option>
-                    ))}
-                  </select>
-                </div>
-                <button 
-                  className="btn-primary" 
-                  style={{ width: '100%', marginTop: 8 }} 
-                  onClick={handleCheckout}
-                  disabled={isCheckingOut}
-                >
-                  {isCheckingOut ? 'Placing Order...' : `Pay $${cartTotal.toFixed(2)}`}
-                </button>
-              </div>
-            </>
-          )}
+  if (orderSuccess) return (
+    <CustomerLayout>
+      <div className="order-confirm">
+        <div className="confirm-id">#{orderSuccess.orderID}</div>
+        <p className="confirm-sub">Your order is confirmed and being prepared.</p>
+        <p className="confirm-total">${orderSuccess.total.toFixed(2)}</p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+          <button className="btn btn-primary btn-lg" onClick={() => navigate(`/orders/${orderSuccess.orderID}`)}>
+            Track Order
+          </button>
+          <button className="btn btn-ghost btn-lg" onClick={() => setOrderSuccess(null)}>
+            Order More
+          </button>
         </div>
       </div>
     </CustomerLayout>
-  );
+  )
+
+  const categories = ['all', ...Array.from(new Set(products.map(p => p.category)))]
+  const visible    = activeCategory === 'all' ? products : products.filter(p => p.category === activeCategory)
+
+  return (
+    <CustomerLayout>
+      {/* Registration prompt — only shown if not yet registered */}
+      {!customerID && (
+        <div className="register-prompt" style={{ marginBottom: 28 }}>
+          <h2>Welcome</h2>
+          <p>Tell us your name so we can save your order history.</p>
+          <form onSubmit={handleRegister}>
+            <div className="register-form-row" style={{ marginBottom: regError ? 10 : 0 }}>
+              <input
+                className="field" placeholder="First name"
+                value={firstName} onChange={e => setFirstName(e.target.value)} required
+                style={{ flex: 1 }}
+              />
+              <input
+                className="field" placeholder="Last name"
+                value={lastName} onChange={e => setLastName(e.target.value)} required
+                style={{ flex: 1 }}
+              />
+              <button className="btn btn-amber" type="submit" disabled={isRegistering}>
+                {isRegistering ? 'Saving…' : 'Start ordering'}
+              </button>
+            </div>
+            {regError && <p style={{ color: '#fca5a5', fontSize: 13, marginTop: 6 }}>{regError}</p>}
+          </form>
+        </div>
+      )}
+
+      <div className="menu-layout">
+        {/* Left: menu */}
+        <div>
+          <div className="tab-bar">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                className={`tab-pill${activeCategory === cat ? ' active' : ''}`}
+                onClick={() => setActiveCategory(cat)}
+              >
+                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          <div className="menu-grid">
+            {visible.map(p => {
+              const qty = cartQty(p.productID)
+              return (
+                <div key={p.productID} className={`product-card${qty > 0 ? ' in-cart' : ''}`}>
+                  <div>
+                    <div className="product-name">{p.name}</div>
+                    <div className="product-price">${p.price.toFixed(2)}</div>
+                  </div>
+                  {qty === 0 ? (
+                    <button className="btn btn-secondary btn-sm" onClick={() => changeQty(p, 1)}>Add</button>
+                  ) : (
+                    <div className="qty-ctrl">
+                      <button className="qty-btn" onClick={() => changeQty(p, -1)}>−</button>
+                      <span className="qty-num">{qty}</span>
+                      <button className="qty-btn" onClick={() => changeQty(p, 1)}>+</button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Right: cart */}
+        <div className="cart-panel">
+          <div className="card">
+            <h3 style={{ marginBottom: 16, fontSize: 18 }}>
+              Your order{cartCount > 0 ? ` · ${cartCount} item${cartCount !== 1 ? 's' : ''}` : ''}
+            </h3>
+
+            {cart.length === 0 ? (
+              <p className="text-muted text-sm" style={{ paddingBottom: 8 }}>Nothing added yet.</p>
+            ) : (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  {cart.map(item => (
+                    <div key={item.product.productID} className="cart-item">
+                      <div className="qty-ctrl" style={{ flexShrink: 0 }}>
+                        <button className="qty-btn" onClick={() => changeQty(item.product, -1)}>−</button>
+                        <span className="qty-num">{item.quantity}</span>
+                        <button className="qty-btn" onClick={() => changeQty(item.product, 1)}>+</button>
+                      </div>
+                      <span className="cart-item-name">{item.product.name}</span>
+                      <span className="cart-item-price">${(item.product.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="cart-total" style={{ marginBottom: 20 }}>
+                  <span>Total</span>
+                  <span>${cartTotal.toFixed(2)}</span>
+                </div>
+
+                {/* Show checkout controls only if registered */}
+                {customerID ? (
+                  <div className="stack stack-sm">
+                    <div>
+                      <label className="field-label">Payment</label>
+                      <select className="field" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
+                        <option value="card">Credit card</option>
+                        <option value="cash">Cash</option>
+                        <option value="online">Online payment</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="field-label">Table (optional)</label>
+                      <select className="field" value={tableID} onChange={e => setTableID(e.target.value)}>
+                        <option value="">Takeaway / counter</option>
+                        {tables.map(t => (
+                          <option key={t.tableID} value={t.tableID}>
+                            {t.location} — seats {t.capacity}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {orderError && <p className="inline-error">{orderError}</p>}
+                    <button
+                      className="btn btn-primary btn-full"
+                      style={{ marginTop: 4 }}
+                      onClick={handleOrder}
+                      disabled={isOrdering}
+                    >
+                      {isOrdering ? 'Placing order…' : `Place order · $${cartTotal.toFixed(2)}`}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted" style={{ textAlign: 'center', paddingTop: 4 }}>
+                    Enter your name above to place this order.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </CustomerLayout>
+  )
 }

@@ -1,85 +1,107 @@
-import { useState, useEffect } from 'react';
-import { api } from '../api';
-import type { Order, OrderItem } from '../api';
-import CustomerLayout from '../components/CustomerLayout';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react'
+import { api } from '../api'
+import type { Order, OrderItem } from '../api'
+import CustomerLayout from '../components/CustomerLayout'
+import { useParams, useNavigate } from 'react-router-dom'
+
+const STATUS_CLASS: Record<string, string> = {
+  pending: 'badge-pending', confirmed: 'badge-confirmed', completed: 'badge-completed',
+}
 
 export default function OrderDetailPage() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const [order, setOrder] = useState<Order | null>(null);
-  const [items, setItems] = useState<OrderItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const customerID = localStorage.getItem('customerID');
+  const { id }   = useParams()
+  const navigate = useNavigate()
+  const [order, setOrder]   = useState<Order | null>(null)
+  const [items, setItems]   = useState<OrderItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]   = useState('')
+  const customerID = localStorage.getItem('customerID')
 
   useEffect(() => {
-    if (!customerID || !id) return;
+    if (!customerID || !id) { setLoading(false); return }
     api.getOrder(parseInt(id, 10), parseInt(customerID, 10))
-      .then(res => {
-        setOrder(res.order);
-        setItems(res.items);
-      })
-      .catch(err => {
-        console.error(err);
-        alert('Order not found');
-        navigate('/orders');
-      })
-      .finally(() => setLoading(false));
-  }, [id, customerID, navigate]);
+      .then(r => { setOrder(r.order); setItems(r.items) })
+      .catch(() => setError('Order not found or access denied.'))
+      .finally(() => setLoading(false))
+  }, [id, customerID])
 
-  if (loading) return <CustomerLayout><div className="loader" style={{margin: '40px auto', display: 'block'}}></div></CustomerLayout>;
-  if (!order) return <CustomerLayout><div>Order not found.</div></CustomerLayout>;
+  if (loading) return (
+    <CustomerLayout><div className="loader-wrap"><div className="loader" /></div></CustomerLayout>
+  )
 
-  const total = items.reduce((sum, item) => sum + item.priceAtOrder * item.quantity, 0);
+  if (error || !order) return (
+    <CustomerLayout>
+      <div className="empty-state" style={{ marginTop: 60 }}>
+        <p style={{ marginBottom: 16 }}>{error || 'Order not found.'}</p>
+        <button className="btn btn-primary" onClick={() => navigate('/orders')}>Back to orders</button>
+      </div>
+    </CustomerLayout>
+  )
+
+  const total = items.reduce((s, i) => s + i.priceAtOrder * i.quantity, 0)
+  const date  = new Date(order.time * 1000)
 
   return (
     <CustomerLayout>
-      <button 
-        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', marginBottom: 24, padding: 0, fontSize: 16 }} 
+      <button
+        className="btn btn-ghost btn-sm"
+        style={{ marginBottom: 20 }}
         onClick={() => navigate('/orders')}
       >
-        &larr; Back to Orders
+        ← Back
       </button>
 
-      <div className="card" style={{ maxWidth: 600, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 24 }}>
+      <div className="card" style={{ maxWidth: 560 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 20, borderBottom: '1px solid var(--border)' }}>
           <div>
-            <h1 style={{ margin: '0 0 8px 0', fontSize: 32 }}>Order #{order.orderID}</h1>
-            <div style={{ color: 'var(--text-muted)' }}>
-              {new Date(order.time).toLocaleString()}
+            <h1 style={{ fontSize: 28, marginBottom: 4 }}>Order #{order.orderID}</h1>
+            <p className="text-sm text-muted">
+              {date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+              {' at '}
+              {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+          <span className={`badge ${STATUS_CLASS[order.status] ?? 'badge-neutral'}`} style={{ fontSize: 12 }}>
+            {order.status}
+          </span>
+        </div>
+
+        {/* Meta */}
+        <div className="cluster cluster-md" style={{ marginBottom: 24, flexWrap: 'wrap' }}>
+          <div>
+            <div className="text-xs text-muted fw-600" style={{ textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3 }}>Type</div>
+            <div className="text-sm">
+              {order.isOnline ? 'Online' : 'In-store'}
+              {order.tableID ? ` · Table ${order.tableID}` : ' · Takeaway'}
             </div>
           </div>
-          <span className={`badge ${order.status}`} style={{ fontSize: 14, padding: '6px 12px' }}>{order.status}</span>
-        </div>
-
-        <div style={{ display: 'flex', gap: 32, marginBottom: 32, color: 'var(--text-muted)', fontSize: 14 }}>
+          <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
           <div>
-            <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Type</div>
-            <div>{order.isOnline ? 'Online Order' : 'In-Store'} {order.tableID ? `(Table ${order.tableID})` : '(Takeaway)'}</div>
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Payment</div>
-            <div style={{ textTransform: 'capitalize' }}>{order.paymentMethod}</div>
+            <div className="text-xs text-muted fw-600" style={{ textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3 }}>Payment</div>
+            <div className="text-sm" style={{ textTransform: 'capitalize' }}>{order.paymentMethod}</div>
           </div>
         </div>
 
-        <h3 style={{ marginBottom: 16 }}>Items</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+        {/* Items */}
+        <h3 style={{ fontSize: 15, marginBottom: 12 }}>Items</h3>
+        <div style={{ marginBottom: 20 }}>
           {items.map(item => (
-            <div key={item.orderItemID} style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>
-                <span style={{ fontWeight: 500 }}>{item.quantity}x</span> {item.productName}
-              </div>
-              <div>${(item.priceAtOrder * item.quantity).toFixed(2)}</div>
+            <div key={item.orderItemID} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
+              <span>
+                <span className="fw-500">{item.quantity}×</span> {item.productName}
+              </span>
+              <span className="text-muted">${(item.priceAtOrder * item.quantity).toFixed(2)}</span>
             </div>
           ))}
         </div>
 
-        <div style={{ borderTop: '2px solid var(--border)', paddingTop: 16, display: 'flex', justifyContent: 'space-between', fontSize: 20, fontWeight: 600 }}>
+        {/* Total */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, fontWeight: 600, paddingTop: 4 }}>
           <span>Total</span>
           <span>${total.toFixed(2)}</span>
         </div>
       </div>
     </CustomerLayout>
-  );
+  )
 }

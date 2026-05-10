@@ -1,48 +1,46 @@
-import React from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { api } from '../api';
+import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { api } from '../api'
+
+const NAV = [
+  { path: '/admin',           label: 'Dashboard' },
+  { path: '/admin/orders',    label: 'Orders' },
+  { path: '/admin/products',  label: 'Products' },
+  { path: '/admin/inventory', label: 'Inventory' },
+  { path: '/admin/sales',     label: 'Sales Report' },
+]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate  = useNavigate()
+  const location  = useLocation()
 
   const handleLogout = async () => {
-    try {
-      await api.adminLogout();
-      navigate('/admin/login');
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const links = [
-    { path: '/admin', label: 'Dashboard' },
-    { path: '/admin/orders', label: 'Orders' },
-    { path: '/admin/products', label: 'Products' },
-    { path: '/admin/inventory', label: 'Inventory' },
-    { path: '/admin/sales', label: 'Sales Report' },
-  ];
+    await api.adminLogout().catch(() => {})
+    navigate('/admin/login')
+  }
 
   return (
-    <div className="admin-layout">
+    <div className="admin-shell">
       <aside className="admin-sidebar">
-        <div className="logo">Grind Admin</div>
+        <div className="admin-logo">Grind Admin</div>
         <nav className="admin-nav">
-          {links.map((link) => (
+          {NAV.map(n => (
             <Link
-              key={link.path}
-              to={link.path}
-              className={location.pathname === link.path ? 'active' : ''}
+              key={n.path}
+              to={n.path}
+              className={location.pathname === n.path ? 'active' : ''}
             >
-              {link.label}
+              {n.label}
             </Link>
           ))}
-          <a href="#" onClick={(e) => { e.preventDefault(); handleLogout(); }}>Logout</a>
+          <div className="admin-nav-divider" />
+          <div className="admin-nav-logout">
+            <a href="#" onClick={e => { e.preventDefault(); handleLogout() }}>Log out</a>
+          </div>
         </nav>
       </aside>
-      <main className="admin-content">
-        {children}
-      </main>
+      <div className="admin-body">
+        <div className="admin-page">{children}</div>
+      </div>
     </div>
-  );
+  )
 }
